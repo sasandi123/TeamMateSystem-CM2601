@@ -1,12 +1,11 @@
-// Main.java
 package teammate;
 
+import teammate.service.TeamMateSystem;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        // TeamMateSystem will correctly instantiate the external ParticipantManager
         TeamMateSystem system = new TeamMateSystem();
 
         System.out.println("=================================");
@@ -32,7 +31,8 @@ public class Main {
                         system.organizerPortal(scanner);
                         break;
                     case 3:
-                        System.out.println("Thank you for using TeamMate System!");
+                        System.out.println("Thank you for using TeamMate System! Saving final state...");
+                        system.getParticipantManager().saveAllParticipants();
                         scanner.close();
                         System.exit(0);
                     default:
@@ -41,7 +41,6 @@ public class Main {
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input. Please enter a number.");
             } catch (Exception e) {
-                // Catching general exceptions that might bubble up from the portal calls
                 System.out.println("An unexpected error occurred: " + e.getMessage());
             }
         }

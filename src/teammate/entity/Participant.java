@@ -1,6 +1,8 @@
-// Participant.java
-package teammate;
+package teammate.entity;
 
+/**
+ * Entity class representing a participant in the TeamMate system
+ */
 public class Participant {
     private String id;
     private String name;
@@ -10,10 +12,11 @@ public class Participant {
     private String preferredRole;
     private int personalityScore;
     private String personalityType;
-    private String status; // CRITICAL: Tracks assignment status
+    private String status;
+
     private static int participantCounter = 0;
 
-    // Constructor for new participants (e.g., from survey)
+    // Constructor for new participants
     public Participant(String name, String email, String preferredGame, int skillLevel,
                        String preferredRole, int personalityScore, String personalityType) {
         this.id = generateId();
@@ -27,7 +30,7 @@ public class Participant {
         this.status = "Available";
     }
 
-    // Constructor for loading from CSV (including status)
+    // Constructor for loading from file
     public Participant(String id, String name, String email, String preferredGame, int skillLevel,
                        String preferredRole, int personalityScore, String personalityType, String status) {
         this.id = id;
@@ -44,10 +47,10 @@ public class Participant {
 
     private String generateId() {
         participantCounter++;
-        return "P" + String.format("%03d", participantCounter);
+        return "P" + String.format("%04d", participantCounter);
     }
 
-    private void updateCounter(String id) {
+    public static void updateCounter(String id) {
         try {
             int num = Integer.parseInt(id.substring(1));
             if (num > participantCounter) {
@@ -72,15 +75,15 @@ public class Participant {
     // Setters
     public void setStatus(String status) { this.status = status; }
 
-    @Override
-    public String toString() {
-        return String.format("%s - %s (%s) | Game: %s | Skill: %d | Role: %s | Type: %s | Status: %s",
-                id, name, email, preferredGame, skillLevel, preferredRole, personalityType, status);
-    }
-
     public String toCSVString() {
         return String.format("%s,%s,%s,%s,%d,%s,%d,%s,%s",
                 id, name, email, preferredGame, skillLevel, preferredRole,
                 personalityScore, personalityType, status);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s - %s (%s) | Game: %s | Skill: %d | Role: %s | Type: %s",
+                id, name, email, preferredGame, skillLevel, preferredRole, personalityType);
     }
 }

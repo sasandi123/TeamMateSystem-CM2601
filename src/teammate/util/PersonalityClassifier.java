@@ -1,13 +1,10 @@
-// PersonalityClassifier.java
-package teammate;
+package teammate.util;
 
+/**
+ * Utility class for personality classification
+ */
 public class PersonalityClassifier {
 
-    /**
-     * Classifies personality type based on score
-     * @param score Total personality score (0-100)
-     * @return Personality type as String
-     */
     public static String classifyPersonality(int score) {
         if (score >= 90 && score <= 100) {
             return "Leader";
@@ -20,20 +17,10 @@ public class PersonalityClassifier {
         }
     }
 
-    /**
-     * Validates if a personality score is within valid range
-     * @param score Score to validate
-     * @return true if valid, false otherwise
-     */
     public static boolean isValidScore(int score) {
         return score >= 50 && score <= 100;
     }
 
-    /**
-     * Gets description for a personality type
-     * @param type Personality type
-     * @return Description string
-     */
     public static String getDescription(String type) {
         switch (type) {
             case "Leader":

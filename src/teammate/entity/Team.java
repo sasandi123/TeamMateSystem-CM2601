@@ -1,8 +1,10 @@
-// Team.java
-package teammate;
+package teammate.entity;
 
 import java.util.*;
 
+/**
+ * Entity class representing a team
+ */
 public class Team {
     private String teamId;
     private List<Participant> members;
@@ -20,6 +22,10 @@ public class Team {
         return "TEAM" + String.format("%03d", teamCounter);
     }
 
+    public static void resetTeamCounter() {
+        teamCounter = 0;
+    }
+
     public boolean addMember(Participant participant) {
         if (members.size() < maxSize) {
             members.add(participant);
@@ -34,6 +40,10 @@ public class Team {
 
     public int getCurrentSize() {
         return members.size();
+    }
+
+    public int getMaxSize() {
+        return maxSize;
     }
 
     public List<Participant> getMembers() {
@@ -53,31 +63,43 @@ public class Team {
         return false;
     }
 
-    // Calculate team statistics
     public double getAverageSkill() {
         if (members.isEmpty()) return 0;
-        int totalSkill = members.stream().mapToInt(Participant::getSkillLevel).sum();
-        return (double) totalSkill / members.size();
+        return members.stream()
+                .mapToInt(Participant::getSkillLevel)
+                .average()
+                .orElse(0);
     }
 
     public Map<String, Integer> getRoleDistribution() {
         Map<String, Integer> distribution = new HashMap<>();
         for (Participant p : members) {
-            distribution.put(p.getPreferredRole(), distribution.getOrDefault(p.getPreferredRole(), 0) + 1);
+            distribution.put(p.getPreferredRole(),
+                    distribution.getOrDefault(p.getPreferredRole(), 0) + 1);
+        }
+        return distribution;
+    }
+
+    public Map<String, Integer> getPersonalityDistribution() {
+        Map<String, Integer> distribution = new HashMap<>();
+        for (Participant p : members) {
+            distribution.put(p.getPersonalityType(),
+                    distribution.getOrDefault(p.getPersonalityType(), 0) + 1);
+        }
+        return distribution;
+    }
+
+    public Map<String, Integer> getGameDistribution() {
+        Map<String, Integer> distribution = new HashMap<>();
+        for (Participant p : members) {
+            distribution.put(p.getPreferredGame(),
+                    distribution.getOrDefault(p.getPreferredGame(), 0) + 1);
         }
         return distribution;
     }
 
     public int getRoleCount() {
         return getRoleDistribution().size();
-    }
-
-    public Map<String, Integer> getGameDistribution() {
-        Map<String, Integer> distribution = new HashMap<>();
-        for (Participant p : members) {
-            distribution.put(p.getPreferredGame(), distribution.getOrDefault(p.getPreferredGame(), 0) + 1);
-        }
-        return distribution;
     }
 
     public int getLeaderCount() {
@@ -118,11 +140,22 @@ public class Team {
                 System.out.println("  " + game + ": " + count));
     }
 
-    private Map<String, Integer> getPersonalityDistribution() {
-        Map<String, Integer> distribution = new HashMap<>();
-        for (Participant p : members) {
-            distribution.put(p.getPersonalityType(), distribution.getOrDefault(p.getPersonalityType(), 0) + 1);
+    public String toCSVString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(teamId).append(",");
+        sb.append(getCurrentSize()).append(",");
+        sb.append(String.format("%.2f", getAverageSkill())).append(",");
+
+        // Add member IDs
+        for (int i = 0; i < members.size(); i++) {
+            sb.append(members.get(i).getId());
+            if (i < members.size() - 1) sb.append(";");
         }
-        return distribution;
+        return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return teamId + " (" + members.size() + " members)";
     }
 }
