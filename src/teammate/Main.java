@@ -1,12 +1,17 @@
 package teammate;
 
-import teammate.service.TeamMateSystem;
+import teammate.service.ParticipantPortalService;
+import teammate.service.OrganizerPortalService;
+import teammate.service.ParticipantManager;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        TeamMateSystem system = new TeamMateSystem();
+
+        ParticipantManager participantManager = new ParticipantManager();
+        ParticipantPortalService participantPortal = new ParticipantPortalService(participantManager);
+        OrganizerPortalService organizerPortal = new OrganizerPortalService(participantManager);
 
         System.out.println("=================================");
         System.out.println("  TEAMMATE SYSTEM");
@@ -25,14 +30,14 @@ public class Main {
 
                 switch (choice) {
                     case 1:
-                        system.participantPortal(scanner);
+                        participantPortal.showPortal(scanner);
                         break;
                     case 2:
-                        system.organizerPortal(scanner);
+                        organizerPortal.showPortal(scanner);
                         break;
                     case 3:
                         System.out.println("Thank you for using TeamMate System! Saving final state...");
-                        system.getParticipantManager().saveAllParticipants();
+                        participantManager.saveAllParticipants();
                         scanner.close();
                         System.exit(0);
                     default:

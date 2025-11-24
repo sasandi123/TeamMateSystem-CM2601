@@ -1,8 +1,5 @@
 package teammate.entity;
 
-/**
- * Entity class representing a participant in the TeamMate system
- */
 public class Participant {
     private String id;
     private String name;
@@ -14,12 +11,10 @@ public class Participant {
     private String personalityType;
     private String status;
 
-    private static int participantCounter = 0;
-
-    // Constructor for new participants
-    public Participant(String name, String email, String preferredGame, int skillLevel,
+    // Constructor with user-provided ID
+    public Participant(String id, String name, String email, String preferredGame, int skillLevel,
                        String preferredRole, int personalityScore, String personalityType) {
-        this.id = generateId();
+        this.id = id;
         this.name = name;
         this.email = email;
         this.preferredGame = preferredGame;
@@ -42,23 +37,6 @@ public class Participant {
         this.personalityScore = personalityScore;
         this.personalityType = personalityType;
         this.status = status;
-        updateCounter(id);
-    }
-
-    private String generateId() {
-        participantCounter++;
-        return "P" + String.format("%04d", participantCounter);
-    }
-
-    public static void updateCounter(String id) {
-        try {
-            int num = Integer.parseInt(id.substring(1));
-            if (num > participantCounter) {
-                participantCounter = num;
-            }
-        } catch (Exception e) {
-            // Ignore invalid IDs
-        }
     }
 
     // Getters
@@ -72,7 +50,6 @@ public class Participant {
     public String getPersonalityType() { return personalityType; }
     public String getStatus() { return status; }
 
-    // Setters
     public void setStatus(String status) { this.status = status; }
 
     public String toCSVString() {

@@ -1,8 +1,5 @@
 package teammate.exception;
 
-/**
- * Custom exception classes for TeamMate System
- */
 public class TeamMateException {
 
     public static class InvalidInputException extends Exception {
@@ -25,6 +22,12 @@ public class TeamMateException {
 
     public static class FileWriteException extends Exception {
         public FileWriteException(String message) {
+            super(message);
+        }
+    }
+
+    public static class ParticipantAlreadyAssignedException extends Exception {
+        public ParticipantAlreadyAssignedException(String message) {
             super(message);
         }
     }

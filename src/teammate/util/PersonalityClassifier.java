@@ -1,8 +1,5 @@
 package teammate.util;
 
-/**
- * Utility class for personality classification
- */
 public class PersonalityClassifier {
 
     public static String classifyPersonality(int score) {

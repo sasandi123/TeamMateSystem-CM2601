@@ -2,14 +2,10 @@ package teammate.service;
 
 import teammate.entity.Participant;
 import teammate.entity.Team;
-import teammate.exception.TeamMateException;
 import teammate.util.FileManager;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Service class for building teams
- */
 public class TeamBuilder {
     private List<Team> teams;
     private double overallAverageSkill;
@@ -27,9 +23,16 @@ public class TeamBuilder {
         return teams.size();
     }
 
+    public void addTeam(Team team) {
+        if (team != null) {
+            team.finalizeTeamId();
+            this.teams.add(team);
+        }
+    }
+
     public void displayAllTeams() {
         System.out.println("\n" + "=".repeat(60));
-        System.out.println("CURRENT GENERATED TEAMS (" + teams.size() + " teams)");
+        System.out.println("GENERATED TEAMS (" + teams.size() + " teams)");
         System.out.println("=".repeat(60));
 
         for (Team team : teams) {
@@ -38,36 +41,37 @@ public class TeamBuilder {
         }
     }
 
-    public void resetTeamMembersStatus() {
+    /**
+     * Resets the status of participants in the current in-memory teams back to "Available"
+     * and clears the teams list for a new generation attempt.
+     */
+    public void resetCurrentGenerationStatus() {
         if (teams.isEmpty()) return;
 
-        int count = 0;
+        // Only reset participants who are in the current in-memory teams
         for (Team team : teams) {
             for (Participant member : team.getMembers()) {
                 member.setStatus("Available");
-                count++;
             }
         }
 
-        if (count > 0) {
-            System.out.println("Pre-generation Cleanup: " + count + " assignments reverted to 'Available'.");
-        }
-
+        // Clear the teams list for new generation
         this.teams.clear();
     }
 
+    /**
+     * Marks all participants in the currently generated teams as "Assigned" in memory.
+     * The count is printed by the calling service class (OrganizerPortalService).
+     */
     public void markParticipantsAssigned() {
         if (teams.isEmpty()) return;
 
-        int count = 0;
         for (Team team : teams) {
             for (Participant member : team.getMembers()) {
                 member.setStatus("Assigned");
-                count++;
             }
         }
-
-        System.out.println("✓ Updated status for " + count + " participants to 'Assigned'.");
+        // Removed System.out.println statement here.
     }
 
     public void buildTeams(List<Participant> participants, int teamSize) {
@@ -78,53 +82,35 @@ public class TeamBuilder {
 
         List<Participant> available = new ArrayList<>(participants);
 
-        if (available.isEmpty()) {
-            System.out.println("No available participants to form teams.");
-            return;
-        }
-
-        // Calculate target skill level
         int totalSkill = available.stream().mapToInt(Participant::getSkillLevel).sum();
         int expectedTeams = Math.max(1, available.size() / teamSize);
         this.overallAverageSkill = (double) totalSkill / (expectedTeams * teamSize);
 
-        System.out.println("Target average skill per participant: " + String.format("%.2f", overallAverageSkill));
-
         Collections.shuffle(available);
 
-        int maxAttempts = 50;
         int attempts = 0;
-        double skillTolerance = 0.15; // Start with 15% tolerance
+        double skillTolerance = 0.15;
 
-        while (available.size() >= teamSize && attempts < maxAttempts) {
+        while (available.size() >= teamSize && attempts < 50) {
             Team team = buildSingleTeam(available, teamSize, skillTolerance);
 
             if (team != null && isTeamValid(team)) {
                 teams.add(team);
 
-                // Remove assigned members
                 for (Participant member : team.getMembers()) {
                     available.remove(member);
                 }
 
-                attempts = 0; // Reset attempts on success
+                attempts = 0;
             } else {
                 attempts++;
 
-                // Gradually relax constraints
                 if (attempts % 10 == 0 && skillTolerance < 0.35) {
                     skillTolerance += 0.05;
-                    System.out.println("--- Relaxing skill tolerance to " +
-                            String.format("%.0f%%", skillTolerance * 100) + " ---");
                     Collections.shuffle(available);
                 }
             }
         }
-
-        System.out.println("\nTeam Formation Complete:");
-        System.out.println("  Teams formed: " + teams.size());
-        System.out.println("  Participants assigned: " + (participants.size() - available.size()));
-        System.out.println("  Participants unassigned: " + available.size());
     }
 
     private Team buildSingleTeam(List<Participant> candidates, int teamSize, double skillTolerance) {
@@ -136,59 +122,46 @@ public class TeamBuilder {
 
         List<Participant> selected = new ArrayList<>();
 
-        // STEP 1: Find exactly 1 Leader (MANDATORY)
         Participant leader = pool.stream()
                 .filter(p -> p.getPersonalityType().equals("Leader"))
                 .findFirst()
                 .orElse(null);
 
-        if (leader == null) {
-            return null; // Cannot form team without a leader
-        }
+        if (leader == null) return null;
 
         selected.add(leader);
         pool.remove(leader);
 
-        // STEP 2: Find 1-2 Thinkers
         List<Participant> thinkers = pool.stream()
                 .filter(p -> p.getPersonalityType().equals("Thinker"))
                 .limit(2)
                 .collect(Collectors.toList());
 
-        if (thinkers.isEmpty()) {
-            return null; // Must have at least 1 thinker
-        }
+        if (thinkers.isEmpty()) return null;
 
         selected.addAll(thinkers);
         pool.removeAll(thinkers);
 
-        // STEP 3: Fill remaining spots, ensuring role and game diversity
         while (selected.size() < teamSize && !pool.isEmpty()) {
             Participant candidate = pool.remove(0);
-
-            // Check if adding this candidate maintains diversity
             selected.add(candidate);
 
-            // Temporarily create team to check constraints
             Team tempTeam = new Team(teamSize);
             for (Participant p : selected) {
                 tempTeam.addMember(p);
             }
 
-            // If constraints violated, remove and try next
             if (!meetsBasicConstraints(tempTeam)) {
                 selected.remove(candidate);
                 continue;
             }
         }
 
-        // Only return team if it's full and meets all constraints
         if (selected.size() == teamSize) {
             for (Participant p : selected) {
                 team.addMember(p);
             }
 
-            // Final skill check
             double teamAvg = team.getAverageSkill();
             double lowerBound = overallAverageSkill * (1 - skillTolerance);
             double upperBound = overallAverageSkill * (1 + skillTolerance);
@@ -204,7 +177,6 @@ public class TeamBuilder {
     private boolean meetsBasicConstraints(Team team) {
         List<Participant> members = team.getMembers();
 
-        // Check game diversity - max 2 from same game
         Map<String, Long> gameCounts = members.stream()
                 .collect(Collectors.groupingBy(Participant::getPreferredGame, Collectors.counting()));
 
@@ -212,7 +184,6 @@ public class TeamBuilder {
             return false;
         }
 
-        // Check role diversity - at least 3 different roles
         long distinctRoles = members.stream()
                 .map(Participant::getPreferredRole)
                 .distinct()
@@ -224,32 +195,24 @@ public class TeamBuilder {
     private boolean isTeamValid(Team team) {
         List<Participant> members = team.getMembers();
 
-        // 1. Check personality mix: Exactly 1 Leader
         long leaders = members.stream()
                 .filter(p -> p.getPersonalityType().equals("Leader"))
                 .count();
-
         if (leaders != 1) return false;
 
-        // 2. Check personality mix: 1-2 Thinkers
         long thinkers = members.stream()
                 .filter(p -> p.getPersonalityType().equals("Thinker"))
                 .count();
-
         if (thinkers < 1 || thinkers > 2) return false;
 
-        // 3. Check game diversity: Max 2 from same game
         Map<String, Long> gameCounts = members.stream()
                 .collect(Collectors.groupingBy(Participant::getPreferredGame, Collectors.counting()));
-
         if (gameCounts.values().stream().anyMatch(count -> count > 2)) return false;
 
-        // 4. Check role diversity: At least 3 different roles
         long distinctRoles = members.stream()
                 .map(Participant::getPreferredRole)
                 .distinct()
                 .count();
-
         if (distinctRoles < 3) return false;
 
         return true;
@@ -270,5 +233,23 @@ public class TeamBuilder {
 
     public void appendTeamsToCumulative() throws Exception {
         FileManager.appendTeamsToCumulative(teams);
+    }
+
+    /**
+     * Gets a combined list of all participants in the currently generated teams.
+     */
+    public List<Participant> getAllParticipantsInTeams() {
+        List<Participant> assigned = new ArrayList<>();
+        for (Team team : teams) {
+            assigned.addAll(team.getMembers());
+        }
+        return assigned;
+    }
+
+    /**
+     * Clears the temporary list of generated teams after export.
+     */
+    public void clearTeams() {
+        this.teams.clear();
     }
 }

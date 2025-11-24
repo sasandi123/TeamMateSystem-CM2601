@@ -1,29 +1,83 @@
 package teammate.entity;
 
 import java.util.*;
+import java.io.*;
 
-/**
- * Entity class representing a team
- */
 public class Team {
     private String teamId;
     private List<Participant> members;
     private int maxSize;
-    private static int teamCounter = 0;
+    private static int teamCounter = -1; // -1 means not loaded yet
+    private static final String COUNTER_FILE = "team_counter.dat";
 
     public Team(int maxSize) {
-        this.teamId = generateTeamId();
+        // Load counter on first team creation
+        if (teamCounter == -1) {
+            loadTeamCounter();
+        }
+        // 💡 CRITICAL FIX: Use a temporary ID. The final ID will be generated later
+        // after the team is confirmed valid by the formation engine.
+        this.teamId = "TEMP_ID";
         this.members = new ArrayList<>();
         this.maxSize = maxSize;
     }
 
-    private String generateTeamId() {
+    /**
+     * 💡 NEW METHOD: Finalizes the team ID by incrementing the counter,
+     * saving the state, and assigning the sequential ID.
+     * This must be called only when a team is successfully formed and validated.
+     */
+    public void finalizeTeamId() {
         teamCounter++;
-        return "TEAM" + String.format("%03d", teamCounter);
+        saveTeamCounter();
+        this.teamId = "TEAM" + String.format("%04d", teamCounter);
+    }
+
+    // ❌ REMOVED: The private generateTeamId() method that was consuming IDs prematurely.
+
+    /**
+     * Load team counter from file
+     */
+    private static synchronized void loadTeamCounter() {
+        File file = new File(COUNTER_FILE);
+
+        if (!file.exists()) {
+            teamCounter = 0;
+            System.out.println("[System] Starting fresh - First team will be TEAM0001");
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(COUNTER_FILE))) {
+            String line = br.readLine();
+            if (line != null && !line.trim().isEmpty()) {
+                teamCounter = Integer.parseInt(line.trim());
+                // 💡 FIX: Print the correct NEXT team number (current counter + 1)
+                System.out.println("[System] Loaded team counter - Next team: TEAM" +
+                        String.format("%04d", teamCounter + 1));
+            } else {
+                teamCounter = 0;
+            }
+        } catch (Exception e) {
+            System.out.println("[System] Could not load counter, starting from TEAM0001");
+            teamCounter = 0;
+        }
+    }
+
+    /**
+     * Save team counter to file immediately
+     */
+    private static synchronized void saveTeamCounter() {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(COUNTER_FILE))) {
+            pw.println(teamCounter);
+            pw.flush(); // Force write to disk
+        } catch (IOException e) {
+            System.err.println("[System] Warning: Could not save team counter");
+        }
     }
 
     public static void resetTeamCounter() {
         teamCounter = 0;
+        saveTeamCounter();
     }
 
     public boolean addMember(Participant participant) {
@@ -51,6 +105,7 @@ public class Team {
     }
 
     public String getTeamId() {
+        // Returns the final ID or "TEMP_ID" if not yet finalized.
         return teamId;
     }
 
@@ -98,22 +153,6 @@ public class Team {
         return distribution;
     }
 
-    public int getRoleCount() {
-        return getRoleDistribution().size();
-    }
-
-    public int getLeaderCount() {
-        return (int) members.stream()
-                .filter(p -> p.getPersonalityType().equals("Leader"))
-                .count();
-    }
-
-    public int getThinkerCount() {
-        return (int) members.stream()
-                .filter(p -> p.getPersonalityType().equals("Thinker"))
-                .count();
-    }
-
     public void displayTeamInfo() {
         System.out.println("\n" + "=".repeat(50));
         System.out.println("Team ID: " + teamId);
@@ -146,7 +185,6 @@ public class Team {
         sb.append(getCurrentSize()).append(",");
         sb.append(String.format("%.2f", getAverageSkill())).append(",");
 
-        // Add member IDs
         for (int i = 0; i < members.size(); i++) {
             sb.append(members.get(i).getId());
             if (i < members.size() - 1) sb.append(";");
