@@ -3,8 +3,8 @@ package teammate.service;
 import teammate.entity.Participant;
 import teammate.entity.Team;
 import teammate.util.FileManager;
+import teammate.util.TeamFormationHelper;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class TeamBuilder {
     private List<Team> teams;
@@ -23,17 +23,30 @@ public class TeamBuilder {
         return teams.size();
     }
 
+    /**
+     * Adds a team and assigns it a unique ID
+     */
     public void addTeam(Team team) {
         if (team != null) {
+            team.setTargetSkillLevel(overallAverageSkill);
             team.finalizeTeamId();
             this.teams.add(team);
         }
     }
 
+    /**
+     * Displays all teams with target skill level
+     */
     public void displayAllTeams() {
         System.out.println("\n" + "=".repeat(60));
         System.out.println("GENERATED TEAMS (" + teams.size() + " teams)");
         System.out.println("=".repeat(60));
+
+        if (overallAverageSkill > 0) {
+            System.out.println("Target Average Skill Level: " +
+                    String.format("%.2f", overallAverageSkill));
+            System.out.println("=".repeat(60));
+        }
 
         for (Team team : teams) {
             team.displayTeamInfo();
@@ -42,26 +55,22 @@ public class TeamBuilder {
     }
 
     /**
-     * Resets the status of participants in the current in-memory teams back to "Available"
-     * and clears the teams list for a new generation attempt.
+     * Resets teams for new generation attempt
      */
     public void resetCurrentGenerationStatus() {
         if (teams.isEmpty()) return;
 
-        // Only reset participants who are in the current in-memory teams
         for (Team team : teams) {
             for (Participant member : team.getMembers()) {
                 member.setStatus("Available");
             }
         }
 
-        // Clear the teams list for new generation
         this.teams.clear();
     }
 
     /**
-     * Marks all participants in the currently generated teams as "Assigned" in memory.
-     * The count is printed by the calling service class (OrganizerPortalService).
+     * Marks all team members as assigned
      */
     public void markParticipantsAssigned() {
         if (teams.isEmpty()) return;
@@ -71,9 +80,11 @@ public class TeamBuilder {
                 member.setStatus("Assigned");
             }
         }
-        // Removed System.out.println statement here.
     }
 
+    /**
+     * Sequential team building algorithm
+     */
     public void buildTeams(List<Participant> participants, int teamSize) {
         if (participants == null || participants.isEmpty()) {
             System.out.println("No participants available for team formation");
@@ -82,7 +93,12 @@ public class TeamBuilder {
 
         List<Participant> available = new ArrayList<>(participants);
 
-        int totalSkill = available.stream().mapToInt(Participant::getSkillLevel).sum();
+        // Calculate target skill level
+        int totalSkill = 0;
+        for (Participant p : available) {
+            totalSkill += p.getSkillLevel();
+        }
+
         int expectedTeams = Math.max(1, available.size() / teamSize);
         this.overallAverageSkill = (double) totalSkill / (expectedTeams * teamSize);
 
@@ -92,10 +108,11 @@ public class TeamBuilder {
         double skillTolerance = 0.15;
 
         while (available.size() >= teamSize && attempts < 50) {
-            Team team = buildSingleTeam(available, teamSize, skillTolerance);
+            Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
+                    overallAverageSkill, skillTolerance);
 
-            if (team != null && isTeamValid(team)) {
-                teams.add(team);
+            if (team != null && TeamFormationHelper.isTeamValid(team)) {
+                addTeam(team);
 
                 for (Participant member : team.getMembers()) {
                     available.remove(member);
@@ -111,111 +128,6 @@ public class TeamBuilder {
                 }
             }
         }
-    }
-
-    private Team buildSingleTeam(List<Participant> candidates, int teamSize, double skillTolerance) {
-        if (candidates.size() < teamSize) return null;
-
-        Team team = new Team(teamSize);
-        List<Participant> pool = new ArrayList<>(candidates);
-        Collections.shuffle(pool);
-
-        List<Participant> selected = new ArrayList<>();
-
-        Participant leader = pool.stream()
-                .filter(p -> p.getPersonalityType().equals("Leader"))
-                .findFirst()
-                .orElse(null);
-
-        if (leader == null) return null;
-
-        selected.add(leader);
-        pool.remove(leader);
-
-        List<Participant> thinkers = pool.stream()
-                .filter(p -> p.getPersonalityType().equals("Thinker"))
-                .limit(2)
-                .collect(Collectors.toList());
-
-        if (thinkers.isEmpty()) return null;
-
-        selected.addAll(thinkers);
-        pool.removeAll(thinkers);
-
-        while (selected.size() < teamSize && !pool.isEmpty()) {
-            Participant candidate = pool.remove(0);
-            selected.add(candidate);
-
-            Team tempTeam = new Team(teamSize);
-            for (Participant p : selected) {
-                tempTeam.addMember(p);
-            }
-
-            if (!meetsBasicConstraints(tempTeam)) {
-                selected.remove(candidate);
-                continue;
-            }
-        }
-
-        if (selected.size() == teamSize) {
-            for (Participant p : selected) {
-                team.addMember(p);
-            }
-
-            double teamAvg = team.getAverageSkill();
-            double lowerBound = overallAverageSkill * (1 - skillTolerance);
-            double upperBound = overallAverageSkill * (1 + skillTolerance);
-
-            if (teamAvg >= lowerBound && teamAvg <= upperBound) {
-                return team;
-            }
-        }
-
-        return null;
-    }
-
-    private boolean meetsBasicConstraints(Team team) {
-        List<Participant> members = team.getMembers();
-
-        Map<String, Long> gameCounts = members.stream()
-                .collect(Collectors.groupingBy(Participant::getPreferredGame, Collectors.counting()));
-
-        if (gameCounts.values().stream().anyMatch(count -> count > 2)) {
-            return false;
-        }
-
-        long distinctRoles = members.stream()
-                .map(Participant::getPreferredRole)
-                .distinct()
-                .count();
-
-        return distinctRoles >= 3;
-    }
-
-    private boolean isTeamValid(Team team) {
-        List<Participant> members = team.getMembers();
-
-        long leaders = members.stream()
-                .filter(p -> p.getPersonalityType().equals("Leader"))
-                .count();
-        if (leaders != 1) return false;
-
-        long thinkers = members.stream()
-                .filter(p -> p.getPersonalityType().equals("Thinker"))
-                .count();
-        if (thinkers < 1 || thinkers > 2) return false;
-
-        Map<String, Long> gameCounts = members.stream()
-                .collect(Collectors.groupingBy(Participant::getPreferredGame, Collectors.counting()));
-        if (gameCounts.values().stream().anyMatch(count -> count > 2)) return false;
-
-        long distinctRoles = members.stream()
-                .map(Participant::getPreferredRole)
-                .distinct()
-                .count();
-        if (distinctRoles < 3) return false;
-
-        return true;
     }
 
     public Team findTeamForParticipant(Participant participant) {
@@ -235,9 +147,6 @@ public class TeamBuilder {
         FileManager.appendTeamsToCumulative(teams);
     }
 
-    /**
-     * Gets a combined list of all participants in the currently generated teams.
-     */
     public List<Participant> getAllParticipantsInTeams() {
         List<Participant> assigned = new ArrayList<>();
         for (Team team : teams) {
@@ -246,9 +155,6 @@ public class TeamBuilder {
         return assigned;
     }
 
-    /**
-     * Clears the temporary list of generated teams after export.
-     */
     public void clearTeams() {
         this.teams.clear();
     }

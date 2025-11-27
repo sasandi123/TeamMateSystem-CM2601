@@ -12,12 +12,8 @@ public class ParticipantPortalService {
     private ParticipantManager participantManager;
     private TeamBuilder teamBuilder;
 
-    public ParticipantPortalService(ParticipantManager participantManager) {
+    public ParticipantPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
         this.participantManager = participantManager;
-        this.teamBuilder = new TeamBuilder();
-    }
-
-    public void setTeamBuilder(TeamBuilder teamBuilder) {
         this.teamBuilder = teamBuilder;
     }
 
@@ -56,21 +52,11 @@ public class ParticipantPortalService {
         try {
             System.out.println("\n--- SUBMIT SURVEY ---");
 
-            System.out.print("Enter Your Participant ID (must start with 'P'): ");
-            String id = scanner.nextLine().trim();
+            String id = getValidParticipantId(scanner);
+            if (id == null) return;
 
-            if (!ValidationUtil.isValidParticipantId(id)) {
-                System.out.println("✗ Invalid ID format. ID must start with 'P' (e.g., P0001, P1234)");
-                return;
-            }
-
-            System.out.print("Enter Your Email: ");
-            String email = scanner.nextLine().trim();
-
-            if (!ValidationUtil.isValidEmail(email)) {
-                System.out.println("✗ Invalid email format.");
-                return;
-            }
+            String email = getValidEmail(scanner);
+            if (email == null) return;
 
             String validationResult = participantManager.validateParticipantCredentials(id, email);
 
@@ -88,23 +74,20 @@ public class ParticipantPortalService {
 
             System.out.println("✓ ID and Email validated successfully. Please complete the survey.\n");
 
-            System.out.print("Enter Full Name: ");
-            String name = scanner.nextLine().trim();
-
-            System.out.print("Enter Preferred Game: ");
-            String preferredGame = scanner.nextLine().trim();
-
+            String name = getNonEmptyInput(scanner, "Enter Full Name: ");
+            String preferredGame = getNonEmptyInput(scanner, "Enter Preferred Game: ");
             int skillLevel = getUserIntInput(scanner, "Enter Skill Level (1-10): ", 1, 10);
-
-            System.out.print("Enter Preferred Role (Strategist, Attacker, Defender, Supporter, Coordinator): ");
-            String preferredRole = scanner.nextLine().trim();
-
-            if (!ValidationUtil.isValidRole(preferredRole)) {
-                System.out.println("⚠ Warning: Role '" + preferredRole + "' is not standard. Proceeding anyway...");
-            }
-
+            String preferredRole = getValidRole(scanner);
             int personalityScore = runPersonalitySurvey(scanner);
-            String personalityType = PersonalityClassifier.classifyPersonality(personalityScore);
+
+            String personalityType;
+            try {
+                personalityType = PersonalityClassifier.classifyPersonality(personalityScore);
+            } catch (IllegalArgumentException e) {
+                System.out.println("\n✗ Survey Failed: " + e.getMessage());
+                System.out.println("   Please retake the survey and provide more accurate responses.");
+                return;
+            }
 
             Participant newParticipant = new Participant(id, name, email, preferredGame, skillLevel,
                     preferredRole, personalityScore, personalityType);
@@ -145,14 +128,12 @@ public class ParticipantPortalService {
             return;
         }
 
-        // Check current memory first
         Team team = teamBuilder.findTeamForParticipant(p);
 
         if (team != null) {
             System.out.println("\n   You are assigned to a team!");
             team.displayTeamInfo();
         } else {
-            // Search in historical cumulative file with full details
             System.out.println("\n   Searching team records...");
             FileManager.findParticipantTeamInCumulative(p.getId(), participantManager);
         }
@@ -171,17 +152,95 @@ public class ParticipantPortalService {
         return totalScore * 4;
     }
 
+    private String getValidParticipantId(Scanner scanner) {
+        while (true) {
+            System.out.print("Enter Your Participant ID (must start with 'P'): ");
+            String id = scanner.nextLine().trim();
+
+            if (id.isEmpty()) {
+                System.out.println("✗ ID cannot be empty. Please try again.");
+                continue;
+            }
+
+            if (!ValidationUtil.isValidParticipantId(id)) {
+                System.out.println("✗ Invalid ID format. ID must start with 'P' (e.g., P0001, P1234)");
+                continue;
+            }
+
+            return id;
+        }
+    }
+
+    private String getValidEmail(Scanner scanner) {
+        while (true) {
+            System.out.print("Enter Your Email: ");
+            String email = scanner.nextLine().trim();
+
+            if (email.isEmpty()) {
+                System.out.println("✗ Email cannot be empty. Please try again.");
+                continue;
+            }
+
+            if (!ValidationUtil.isValidEmail(email)) {
+                System.out.println("✗ Invalid email format. Please try again.");
+                continue;
+            }
+
+            return email;
+        }
+    }
+
+    private String getNonEmptyInput(Scanner scanner, String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim();
+
+            if (!input.isEmpty()) {
+                return input;
+            }
+
+            System.out.println("✗ This field cannot be empty. Please try again.");
+        }
+    }
+
+    private String getValidRole(Scanner scanner) {
+        System.out.println("Valid Roles: Strategist, Attacker, Defender, Supporter, Coordinator");
+
+        while (true) {
+            System.out.print("Enter Preferred Role: ");
+            String role = scanner.nextLine().trim();
+
+            if (role.isEmpty()) {
+                System.out.println("✗ Role cannot be empty. Please try again.");
+                continue;
+            }
+
+            if (!ValidationUtil.isValidRole(role)) {
+                System.out.println("✗ Invalid role. Please choose from: Strategist, Attacker, Defender, Supporter, Coordinator");
+                continue;
+            }
+
+            return role;
+        }
+    }
+
     private int getUserIntInput(Scanner scanner, String prompt, int min, int max)
             throws TeamMateException.InvalidInputException {
         while (true) {
             System.out.print(prompt);
             String input = scanner.nextLine().trim();
+
+            if (input.isEmpty()) {
+                System.out.println("Input cannot be empty. Please enter a number between " + min + " and " + max + ".");
+                continue;
+            }
+
             try {
                 int value = Integer.parseInt(input);
                 if (value >= min && value <= max) {
                     return value;
                 } else {
-                    System.out.println("Input must be between " + min + " and " + max + ". Try again.");
+                    System.out.println("Please enter a number between " + min + " and " + max + ".");
                 }
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input. Please enter a number.");

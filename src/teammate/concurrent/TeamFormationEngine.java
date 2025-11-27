@@ -5,11 +5,11 @@ import teammate.entity.Team;
 import teammate.service.TeamBuilder;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 /**
  * Unified engine for team formation with automatic mode selection
  * Handles both sequential and parallel processing intelligently
+ * CRITICAL: Calculates GLOBAL target skill for consistent team balancing
  */
 public class TeamFormationEngine {
     private TeamBuilder teamBuilder;
@@ -51,8 +51,6 @@ public class TeamFormationEngine {
 
         try {
             Future<Integer> future = executor.submit(() -> {
-                // Assuming teamBuilder.buildTeams() contains the sequential logic
-                // and calls teamBuilder.addTeam() internally.
                 teamBuilder.buildTeams(participants, teamSize);
                 return teamBuilder.getTeamCount();
             });
@@ -65,9 +63,21 @@ public class TeamFormationEngine {
 
     /**
      * Parallel processing for large datasets
+     * CRITICAL: Calculates GLOBAL target skill to ensure all teams balance consistently
      */
     private int buildTeamsParallel(List<Participant> participants, int teamSize)
             throws InterruptedException, ExecutionException {
+
+        // CRITICAL FIX: Calculate GLOBAL target skill for ALL participants
+        int totalSkill = 0;
+        for (Participant p : participants) {
+            totalSkill += p.getSkillLevel();
+        }
+        int expectedTeams = Math.max(1, participants.size() / teamSize);
+        double globalTargetSkill = (double) totalSkill / (expectedTeams * teamSize);
+
+        System.out.println("[System] Global target skill: " +
+                String.format("%.2f", globalTargetSkill));
 
         int actualThreads = Math.min(OPTIMAL_THREADS,
                 Math.max(2, participants.size() / (teamSize * 3)));
@@ -79,9 +89,12 @@ public class TeamFormationEngine {
             int batchSize = Math.max(teamSize * 3, participants.size() / actualThreads);
             List<List<Participant>> batches = divideToBatches(participants, batchSize);
 
+            System.out.println("[System] Using " + actualThreads + " threads for " +
+                    batches.size() + " batches");
+
             for (List<Participant> batch : batches) {
-                // Uses the new external BatchProcessor class
-                BatchProcessor task = new BatchProcessor(batch, teamSize);
+                // Pass GLOBAL target skill to ensure consistency across all batches
+                BatchProcessor task = new BatchProcessor(batch, teamSize, globalTargetSkill);
                 futures.add(executor.submit(task));
             }
 

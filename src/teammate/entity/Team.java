@@ -7,25 +7,22 @@ public class Team {
     private String teamId;
     private List<Participant> members;
     private int maxSize;
-    private static int teamCounter = -1; // -1 means not loaded yet
+    private double targetSkillLevel;
+    private static int teamCounter = -1;
     private static final String COUNTER_FILE = "team_counter.dat";
 
     public Team(int maxSize) {
-        // Load counter on first team creation
         if (teamCounter == -1) {
             loadTeamCounter();
         }
-        // 💡 CRITICAL FIX: Use a temporary ID. The final ID will be generated later
-        // after the team is confirmed valid by the formation engine.
         this.teamId = "TEMP_ID";
         this.members = new ArrayList<>();
         this.maxSize = maxSize;
+        this.targetSkillLevel = 0;
     }
 
     /**
-     * 💡 NEW METHOD: Finalizes the team ID by incrementing the counter,
-     * saving the state, and assigning the sequential ID.
-     * This must be called only when a team is successfully formed and validated.
+     * Assigns final team ID with counter increment
      */
     public void finalizeTeamId() {
         teamCounter++;
@@ -33,11 +30,6 @@ public class Team {
         this.teamId = "TEAM" + String.format("%04d", teamCounter);
     }
 
-    // ❌ REMOVED: The private generateTeamId() method that was consuming IDs prematurely.
-
-    /**
-     * Load team counter from file
-     */
     private static synchronized void loadTeamCounter() {
         File file = new File(COUNTER_FILE);
 
@@ -51,7 +43,6 @@ public class Team {
             String line = br.readLine();
             if (line != null && !line.trim().isEmpty()) {
                 teamCounter = Integer.parseInt(line.trim());
-                // 💡 FIX: Print the correct NEXT team number (current counter + 1)
                 System.out.println("[System] Loaded team counter - Next team: TEAM" +
                         String.format("%04d", teamCounter + 1));
             } else {
@@ -63,21 +54,21 @@ public class Team {
         }
     }
 
-    /**
-     * Save team counter to file immediately
-     */
     private static synchronized void saveTeamCounter() {
         try (PrintWriter pw = new PrintWriter(new FileWriter(COUNTER_FILE))) {
             pw.println(teamCounter);
-            pw.flush(); // Force write to disk
+            pw.flush();
         } catch (IOException e) {
             System.err.println("[System] Warning: Could not save team counter");
         }
     }
 
-    public static void resetTeamCounter() {
-        teamCounter = 0;
-        saveTeamCounter();
+    public void setTargetSkillLevel(double target) {
+        this.targetSkillLevel = target;
+    }
+
+    public double getTargetSkillLevel() {
+        return targetSkillLevel;
     }
 
     public boolean addMember(Participant participant) {
@@ -88,24 +79,11 @@ public class Team {
         return false;
     }
 
-    public boolean isFull() {
-        return members.size() >= maxSize;
-    }
-
-    public int getCurrentSize() {
-        return members.size();
-    }
-
-    public int getMaxSize() {
-        return maxSize;
-    }
-
     public List<Participant> getMembers() {
         return new ArrayList<>(members);
     }
 
     public String getTeamId() {
-        // Returns the final ID or "TEMP_ID" if not yet finalized.
         return teamId;
     }
 
@@ -120,10 +98,13 @@ public class Team {
 
     public double getAverageSkill() {
         if (members.isEmpty()) return 0;
-        return members.stream()
-                .mapToInt(Participant::getSkillLevel)
-                .average()
-                .orElse(0);
+
+        int totalSkill = 0;
+        for (Participant p : members) {
+            totalSkill += p.getSkillLevel();
+        }
+
+        return (double) totalSkill / members.size();
     }
 
     public Map<String, Integer> getRoleDistribution() {
@@ -182,7 +163,7 @@ public class Team {
     public String toCSVString() {
         StringBuilder sb = new StringBuilder();
         sb.append(teamId).append(",");
-        sb.append(getCurrentSize()).append(",");
+        sb.append(members.size()).append(",");
         sb.append(String.format("%.2f", getAverageSkill())).append(",");
 
         for (int i = 0; i < members.size(); i++) {

@@ -3,15 +3,22 @@ package teammate;
 import teammate.service.ParticipantPortalService;
 import teammate.service.OrganizerPortalService;
 import teammate.service.ParticipantManager;
+import teammate.service.TeamBuilder;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
+        // Initialize shared components
         ParticipantManager participantManager = new ParticipantManager();
-        ParticipantPortalService participantPortal = new ParticipantPortalService(participantManager);
-        OrganizerPortalService organizerPortal = new OrganizerPortalService(participantManager);
+        TeamBuilder sharedTeamBuilder = new TeamBuilder();
+
+        // Create portals with shared team builder
+        ParticipantPortalService participantPortal =
+                new ParticipantPortalService(participantManager, sharedTeamBuilder);
+        OrganizerPortalService organizerPortal =
+                new OrganizerPortalService(participantManager, sharedTeamBuilder);
 
         System.out.println("=================================");
         System.out.println("  TEAMMATE SYSTEM");

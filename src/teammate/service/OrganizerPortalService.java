@@ -10,12 +10,11 @@ import java.util.*;
 public class OrganizerPortalService {
     private ParticipantManager participantManager;
     private TeamBuilder teamBuilder;
-    // CRITICAL: This list now tracks the exact pool of participants used in the last 'Generate Teams' run.
     private List<Participant> currentAssignmentPool;
 
-    public OrganizerPortalService(ParticipantManager participantManager) {
+    public OrganizerPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
         this.participantManager = participantManager;
-        this.teamBuilder = new TeamBuilder();
+        this.teamBuilder = teamBuilder;
         this.currentAssignmentPool = new ArrayList<>();
     }
 
@@ -89,7 +88,6 @@ public class OrganizerPortalService {
             @SuppressWarnings("unchecked")
             List<Participant> newlyAdded = (List<Participant>) result.get("newlyAdded");
 
-            // For file upload, the currentAssignmentPool is the newly added set
             currentAssignmentPool = newlyAdded;
 
             System.out.println("\n" + "=".repeat(50));
@@ -111,7 +109,6 @@ public class OrganizerPortalService {
     }
 
     private void generateTeams(Scanner scanner) throws Exception {
-        // Clear previous generation's teams, but keep assignment status in PM until export.
         teamBuilder.resetCurrentGenerationStatus();
 
         List<Participant> participantsToUse;
@@ -125,10 +122,7 @@ public class OrganizerPortalService {
             String choice = scanner.nextLine().trim().toUpperCase();
 
             if (choice.equals("Y")) {
-                // Reload all participants from the file to ensure status is up-to-date with last export.
                 participantManager.loadAllParticipants();
-
-                // Get ONLY truly available participants
                 participantsToUse = participantManager.getAvailableParticipants();
 
                 if (participantsToUse.isEmpty()) {
@@ -148,7 +142,6 @@ public class OrganizerPortalService {
             }
         }
 
-        // CRITICAL FIX: Set the pool to the full list of participants used for THIS run.
         currentAssignmentPool = new ArrayList<>(participantsToUse);
 
         if (participantsToUse.size() < 3) {
@@ -176,7 +169,6 @@ public class OrganizerPortalService {
         System.out.println("✓ TEAM FORMATION COMPLETE");
         System.out.println("=".repeat(50));
         System.out.println("Teams formed: " + teamsFormed);
-        // Display the count from the current run
         System.out.println("Participants assigned: " + assignedCount);
         System.out.println("Participants unassigned: " + unassignedCount);
         System.out.println("Time taken: " + (endTime - startTime) + "ms");
@@ -188,6 +180,7 @@ public class OrganizerPortalService {
             System.out.println("\n⚠ No teams could be formed. Try adjusting team size.");
         }
     }
+
     private void viewAllTeams() {
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams have been generated yet.");
@@ -211,33 +204,25 @@ public class OrganizerPortalService {
             return;
         }
 
-        // 1. Get the list of assigned participants from the current run.
-        List<Participant> assignedInRun = teamBuilder.getAllParticipantsInTeams(); // Requires TeamBuilder update
-
-        // 2. Calculate the exact list of unassigned participants from the current pool.
+        List<Participant> assignedInRun = teamBuilder.getAllParticipantsInTeams();
         List<Participant> unassignedInRun = new ArrayList<>(currentAssignmentPool);
-        // Removing the assigned participants leaves only the unassigned ones from the pool
         unassignedInRun.removeAll(assignedInRun);
 
         int assignedCount = assignedInRun.size();
         int unassignedCount = unassignedInRun.size();
-
 
         System.out.print("\nEnter filename for export (e.g., Teams_Nov2024.csv): ");
         String snapshotFilename = scanner.nextLine().trim();
 
         System.out.println("\nExporting teams...");
 
-        // Export data
         teamBuilder.exportTeamsSnapshot(snapshotFilename);
         teamBuilder.appendTeamsToCumulative();
 
-        // 3. Mark assigned participants as "Assigned" in the main ParticipantManager list
         teamBuilder.markParticipantsAssigned();
         System.out.println("✓ " + assignedCount + " participants assigned to teams.");
         System.out.println("✓ Assigned participant statuses updated in memory.");
 
-        // 4. Display the unassigned count specific to the run (20 in the trace example)
         if (unassignedCount > 0) {
             System.out.println("\n" + unassignedCount + " participants remain unassigned.");
 
@@ -250,7 +235,6 @@ public class OrganizerPortalService {
                 int choice = Integer.parseInt(scanner.nextLine().trim());
 
                 if (choice == 2) {
-                    // CRITICAL FIX: Remove only the specific list of unassigned participants from this run.
                     participantManager.removeParticipants(unassignedInRun);
                     System.out.println("✓ Removed " + unassignedCount + " unassigned participants.");
                 } else {
@@ -261,7 +245,6 @@ public class OrganizerPortalService {
             }
         }
 
-        // 5. Save final state (updates the CSV file)
         participantManager.saveAllParticipants();
 
         System.out.println("\n" + "=".repeat(50));
@@ -273,8 +256,7 @@ public class OrganizerPortalService {
         System.out.println("All changes saved successfully");
         System.out.println("=".repeat(50));
 
-        // 6. Clear temporary data for the next run
-        teamBuilder.clearTeams(); // Requires TeamBuilder update
+        teamBuilder.clearTeams();
         currentAssignmentPool.clear();
     }
 

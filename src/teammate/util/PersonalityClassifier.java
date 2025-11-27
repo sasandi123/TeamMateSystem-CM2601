@@ -10,7 +10,9 @@ public class PersonalityClassifier {
         } else if (score >= 50 && score <= 69) {
             return "Thinker";
         } else {
-            throw new IllegalArgumentException("Invalid personality score: " + score);
+            throw new IllegalArgumentException(
+                    "Insufficient personality score (" + score + ") to classify into a personality type. " +
+                            "Score must be between 50 and 100.");
         }
     }
 
@@ -18,16 +20,5 @@ public class PersonalityClassifier {
         return score >= 50 && score <= 100;
     }
 
-    public static String getDescription(String type) {
-        switch (type) {
-            case "Leader":
-                return "Confident, decision-maker, naturally takes charge";
-            case "Balanced":
-                return "Adaptive, communicative, team-oriented";
-            case "Thinker":
-                return "Observant, analytical, prefers planning before action";
-            default:
-                return "Unknown type";
-        }
-    }
+
 }
