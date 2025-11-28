@@ -23,7 +23,10 @@ public class FileManager {
                 out.println(p.toCSVString());
             }
 
+            SystemLogger.logFileOperation("WRITE", ALL_REGISTERED_PARTICIPANTS, true);
+
         } catch (IOException e) {
+            SystemLogger.logFileOperation("WRITE", ALL_REGISTERED_PARTICIPANTS, false);
             throw new TeamMateException.FileWriteException("Could not save participants: " + e.getMessage());
         }
     }
@@ -35,6 +38,7 @@ public class FileManager {
             String line = br.readLine();
 
             if (line == null) {
+                SystemLogger.info("Participant file is empty");
                 return participants;
             }
 
@@ -52,12 +56,17 @@ public class FileManager {
                     participants.add(participant);
                 } catch (Exception e) {
                     // Skip invalid lines
+                    SystemLogger.warning("Skipped invalid participant line: " + e.getMessage());
                 }
             }
 
+            SystemLogger.logFileOperation("READ", ALL_REGISTERED_PARTICIPANTS, true);
+
         } catch (FileNotFoundException e) {
+            SystemLogger.info("Participant file not found - starting fresh");
             // File doesn't exist yet
         } catch (IOException e) {
+            SystemLogger.logFileOperation("READ", ALL_REGISTERED_PARTICIPANTS, false);
             throw new TeamMateException.FileReadException("Error reading participant file: " + e.getMessage());
         }
 
@@ -77,7 +86,11 @@ public class FileManager {
                 out.println(team.toCSVString());
             }
 
+            SystemLogger.logFileOperation("EXPORT_SNAPSHOT", filename, true);
+            SystemLogger.success("Exported " + teams.size() + " teams to snapshot: " + filename);
+
         } catch (IOException e) {
+            SystemLogger.logFileOperation("EXPORT_SNAPSHOT", filename, false);
             throw new TeamMateException.FileWriteException("Could not save snapshot: " + e.getMessage());
         }
     }
@@ -100,7 +113,11 @@ public class FileManager {
                 out.println(timestamp + "," + team.toCSVString());
             }
 
+            SystemLogger.logFileOperation("APPEND_CUMULATIVE", FORMED_TEAMS_CUMULATIVE, true);
+            SystemLogger.success("Appended " + teams.size() + " teams to cumulative records");
+
         } catch (IOException e) {
+            SystemLogger.logFileOperation("APPEND_CUMULATIVE", FORMED_TEAMS_CUMULATIVE, false);
             throw new TeamMateException.FileWriteException("Could not append to cumulative file: " + e.getMessage());
         }
     }
@@ -109,6 +126,8 @@ public class FileManager {
      * Search for a team and display FULL details including member information
      */
     public static void searchTeamById(String teamId, ParticipantManager participantManager) {
+        SystemLogger.info("Team search requested: " + teamId);
+
         try (BufferedReader br = new BufferedReader(new FileReader(FORMED_TEAMS_CUMULATIVE))) {
             String line = br.readLine(); // Skip header
 
@@ -184,6 +203,8 @@ public class FileManager {
                             System.out.println("  " + game + ": " + count));
 
                     System.out.println("=".repeat(60));
+
+                    SystemLogger.success("Team found and displayed: " + teamId);
                     found = true;
                     break;
                 }
@@ -191,12 +212,15 @@ public class FileManager {
 
             if (!found) {
                 System.out.println("\n✗ Team ID '" + teamId + "' not found in records.");
+                SystemLogger.warning("Team not found: " + teamId);
             }
 
         } catch (FileNotFoundException e) {
             System.out.println("\n✗ No team records found.");
+            SystemLogger.error("Team records file not found");
         } catch (IOException e) {
             System.out.println("\n✗ Error reading team records: " + e.getMessage());
+            SystemLogger.logException("Error searching team", e);
         }
     }
 
@@ -204,6 +228,8 @@ public class FileManager {
      * Find which team a participant belongs to
      */
     public static void findParticipantTeamInCumulative(String participantId, ParticipantManager participantManager) {
+        SystemLogger.info("Searching team for participant: " + participantId);
+
         try (BufferedReader br = new BufferedReader(new FileReader(FORMED_TEAMS_CUMULATIVE))) {
             String line = br.readLine();
 
@@ -220,11 +246,14 @@ public class FileManager {
             }
 
             System.out.println("\n✗ No team assignment found in historical records.");
+            SystemLogger.warning("No team found for participant: " + participantId);
 
         } catch (FileNotFoundException e) {
             System.out.println("\n✗ No team records found.");
+            SystemLogger.error("Team records file not found");
         } catch (IOException e) {
             System.out.println("\n✗ Error reading team records: " + e.getMessage());
+            SystemLogger.logException("Error finding participant team", e);
         }
     }
 }

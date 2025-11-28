@@ -3,11 +3,15 @@ package teammate.service;
 import teammate.entity.Participant;
 import teammate.entity.Team;
 import teammate.exception.TeamMateException;
-import teammate.util.PersonalityClassifier;
+import teammate.concurrent.SurveyDataProcessor;
 import teammate.util.ValidationUtil;
 import teammate.util.FileManager;
+import teammate.util.SystemLogger;
 import java.util.Scanner;
 
+/**
+ * Service for participant portal operations
+ */
 public class ParticipantPortalService {
     private ParticipantManager participantManager;
     private TeamBuilder teamBuilder;
@@ -43,14 +47,19 @@ public class ParticipantPortalService {
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input. Please enter a number.");
             } catch (Exception e) {
+                SystemLogger.logException("Participant Portal Error", e);
                 System.out.println("Error: " + e.getMessage());
             }
         }
     }
 
+    /**
+     * Submit survey - delegates processing to SurveyDataProcessor
+     */
     private void submitSurvey(Scanner scanner) {
         try {
             System.out.println("\n--- SUBMIT SURVEY ---");
+            SystemLogger.info("Participant started survey submission");
 
             String id = getValidParticipantId(scanner);
             if (id == null) return;
@@ -58,17 +67,18 @@ public class ParticipantPortalService {
             String email = getValidEmail(scanner);
             if (email == null) return;
 
+            // Validate credentials
             String validationResult = participantManager.validateParticipantCredentials(id, email);
 
             if (validationResult.equals("ID_EXISTS")) {
                 System.out.println("✗ Registration Failed: A participant with ID '" + id + "' already exists.");
-                System.out.println("   Please use your existing ID to check your status.");
+                SystemLogger.warning("Survey failed: ID exists - " + id);
                 return;
             }
 
             if (validationResult.equals("EMAIL_EXISTS")) {
                 System.out.println("✗ Registration Failed: A participant with email '" + email + "' already exists.");
-                System.out.println("   Please check your team status using option 2.");
+                SystemLogger.warning("Survey failed: Email exists - " + email);
                 return;
             }
 
@@ -80,28 +90,29 @@ public class ParticipantPortalService {
             String preferredRole = getValidRole(scanner);
             int personalityScore = runPersonalitySurvey(scanner);
 
-            String personalityType;
-            try {
-                personalityType = PersonalityClassifier.classifyPersonality(personalityScore);
-            } catch (IllegalArgumentException e) {
-                System.out.println("\n✗ Survey Failed: " + e.getMessage());
+            // Delegate to SurveyDataProcessor (separation of concerns)
+            SurveyDataProcessor.SurveyResult result = SurveyDataProcessor.processIndividualSurvey(
+                    id, name, email, preferredGame, skillLevel, preferredRole, personalityScore
+            );
+
+            if (!result.isSuccess()) {
+                System.out.println("\n✗ Survey Failed: " + result.getErrorMessage());
                 System.out.println("   Please retake the survey and provide more accurate responses.");
                 return;
             }
 
-            Participant newParticipant = new Participant(id, name, email, preferredGame, skillLevel,
-                    preferredRole, personalityScore, personalityType);
-
-            participantManager.addParticipant(newParticipant);
+            // Add participant to system
+            participantManager.addParticipant(result.getParticipant());
 
             System.out.println("\n✓ Survey submitted successfully!");
-            System.out.println("Your Participant ID: " + newParticipant.getId());
-            System.out.println("Your Email: " + newParticipant.getEmail());
-            System.out.println("Calculated Personality Type: " + personalityType);
+            System.out.println("Your Participant ID: " + result.getParticipant().getId());
+            System.out.println("Your Email: " + result.getParticipant().getEmail());
+            System.out.println("Calculated Personality Type: " + result.getPersonalityType());
             System.out.println("\nYou can now check your team status using option 2.");
 
         } catch (Exception e) {
             System.out.println("Submission Failed: " + e.getMessage());
+            SystemLogger.logException("Survey submission error", e);
         }
     }
 
@@ -110,10 +121,13 @@ public class ParticipantPortalService {
         System.out.print("Enter your Participant ID, Email, or Full Name: ");
         String searchKey = scanner.nextLine().trim();
 
+        SystemLogger.info("Team status check: " + searchKey);
+
         Participant p = participantManager.findParticipant(searchKey);
 
         if (p == null) {
             System.out.println("✗ Error: Participant not found.");
+            SystemLogger.warning("Participant not found: " + searchKey);
             return;
         }
 

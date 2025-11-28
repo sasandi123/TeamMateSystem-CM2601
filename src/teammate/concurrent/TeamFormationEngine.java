@@ -3,6 +3,7 @@ package teammate.concurrent;
 import teammate.entity.Participant;
 import teammate.entity.Team;
 import teammate.service.TeamBuilder;
+import teammate.util.SystemLogger;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -26,7 +27,10 @@ public class TeamFormationEngine {
     public int buildTeams(List<Participant> participants, int teamSize)
             throws InterruptedException, ExecutionException {
 
+        SystemLogger.info("Team formation started: " + participants.size() + " participants");
+
         if (participants.size() < teamSize) {
+            SystemLogger.warning("Insufficient participants");
             return 0;
         }
 
@@ -35,8 +39,10 @@ public class TeamFormationEngine {
         System.out.println("Processing " + participants.size() + " participants...");
 
         if (useParallel) {
+            SystemLogger.info("Using PARALLEL processing mode");
             return buildTeamsParallel(participants, teamSize);
         } else {
+            SystemLogger.info("Using SEQUENTIAL processing mode");
             return buildTeamsSequential(participants, teamSize);
         }
     }
@@ -55,7 +61,10 @@ public class TeamFormationEngine {
                 return teamBuilder.getTeamCount();
             });
 
-            return future.get();
+            int teamCount = future.get();
+            SystemLogger.success("Sequential formation complete: " + teamCount + " teams");
+            return teamCount;
+
         } finally {
             executor.shutdown();
         }
@@ -78,6 +87,7 @@ public class TeamFormationEngine {
 
         System.out.println("[System] Global target skill: " +
                 String.format("%.2f", globalTargetSkill));
+        SystemLogger.info("Global target skill: " + String.format("%.2f", globalTargetSkill));
 
         int actualThreads = Math.min(OPTIMAL_THREADS,
                 Math.max(2, participants.size() / (teamSize * 3)));
@@ -109,6 +119,7 @@ public class TeamFormationEngine {
                 teamBuilder.addTeam(team);
             }
 
+            SystemLogger.success("Parallel formation complete: " + allTeams.size() + " teams");
             return allTeams.size();
 
         } finally {

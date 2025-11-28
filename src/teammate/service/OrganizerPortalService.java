@@ -1,6 +1,7 @@
 package teammate.service;
 
 import teammate.entity.Participant;
+import teammate.entity.Team;
 import teammate.exception.TeamMateException;
 import teammate.concurrent.TeamFormationEngine;
 import teammate.util.FileManager;
@@ -175,7 +176,11 @@ public class OrganizerPortalService {
         System.out.println("=".repeat(50));
 
         if (teamsFormed > 0) {
-            System.out.println("\nTeams generated successfully. Proceed to [5. Export & Finalize Teams] to save changes.");
+            System.out.println("\n⚠ Teams generated but NOT finalized yet.");
+            System.out.println("Team IDs are temporary. Proceed to [5. Export & Finalize Teams] to:");
+            System.out.println("  - Assign permanent team IDs");
+            System.out.println("  - Save teams to files");
+            System.out.println("  - Update participant statuses");
         } else {
             System.out.println("\n⚠ No teams could be formed. Try adjusting team size.");
         }
@@ -216,9 +221,14 @@ public class OrganizerPortalService {
 
         System.out.println("\nExporting teams...");
 
+        // Export teams to files
         teamBuilder.exportTeamsSnapshot(snapshotFilename);
         teamBuilder.appendTeamsToCumulative();
 
+        // NOW save the counter to file (only when finalized)
+        Team.saveTeamCounterToFile();
+
+        // Mark participants as assigned
         teamBuilder.markParticipantsAssigned();
         System.out.println("✓ " + assignedCount + " participants assigned to teams.");
         System.out.println("✓ Assigned participant statuses updated in memory.");
@@ -253,6 +263,7 @@ public class OrganizerPortalService {
         System.out.println("Snapshot saved: " + snapshotFilename);
         System.out.println("Historical records updated");
         System.out.println("Participant statuses saved");
+        System.out.println("Team counter saved to file");
         System.out.println("All changes saved successfully");
         System.out.println("=".repeat(50));
 

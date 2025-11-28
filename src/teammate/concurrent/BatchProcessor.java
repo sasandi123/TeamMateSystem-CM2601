@@ -30,7 +30,7 @@ public class BatchProcessor implements Callable<List<Team>> {
         int attempts = 0;
         double skillTolerance = 0.15;
 
-        while (available.size() >= teamSize && attempts < 40) {
+        while (available.size() >= teamSize && attempts < 100) {
             Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
                     globalTargetSkill, skillTolerance);
 

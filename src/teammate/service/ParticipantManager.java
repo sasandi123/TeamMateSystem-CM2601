@@ -5,6 +5,7 @@ import teammate.exception.TeamMateException;
 import teammate.concurrent.SurveyDataProcessor;
 import teammate.util.FileManager;
 import teammate.util.ValidationUtil;
+import teammate.util.SystemLogger;
 import java.util.*;
 
 /**
@@ -22,7 +23,9 @@ public class ParticipantManager {
         try {
             this.participants = Collections.synchronizedList(
                     FileManager.loadAllParticipants());
+            SystemLogger.success("Loaded " + participants.size() + " participants");
         } catch (TeamMateException.FileReadException e) {
+            SystemLogger.error("Error loading participants: " + e.getMessage());
             System.err.println("Error loading participants: " + e.getMessage());
         }
     }
@@ -31,8 +34,10 @@ public class ParticipantManager {
         try {
             synchronized (participants) {
                 FileManager.saveAllParticipants(new ArrayList<>(participants));
+                SystemLogger.success("Saved " + participants.size() + " participants");
             }
         } catch (TeamMateException.FileWriteException e) {
+            SystemLogger.error("Failed to save participants: " + e.getMessage());
             System.out.println("Warning: " + e.getMessage());
         }
     }
@@ -64,13 +69,16 @@ public class ParticipantManager {
 
     /**
      * Process external CSV with CONCURRENT processing using threads
+     * Uses SurveyDataProcessor for separation of concerns
      */
     public Map<String, Object> processExternalCSV(String filename, Scanner scanner)
             throws Exception {
 
         Map<String, Object> result = new HashMap<>();
 
-        // Use concurrent processor for survey data
+        SystemLogger.info("Starting CSV upload: " + filename);
+
+        // Use SurveyDataProcessor for CSV processing
         SurveyDataProcessor processor = new SurveyDataProcessor();
         SurveyDataProcessor.ProcessingResult processingResult =
                 processor.processCSVConcurrently(filename, participants);
@@ -93,6 +101,7 @@ public class ParticipantManager {
             String choice = scanner.nextLine().trim().toUpperCase();
 
             if (!choice.equals("Y")) {
+                SystemLogger.info("CSV upload cancelled by user");
                 result.put("cancelled", true);
                 result.put("reason", "Upload cancelled due to assigned participants");
                 return result;
@@ -124,6 +133,7 @@ public class ParticipantManager {
             saveAllParticipants();
             System.out.println("\n✓ Successfully added " + newlyAdded.size() +
                     " new participants");
+            SystemLogger.success("CSV upload complete: " + newlyAdded.size() + " added");
         }
 
         result.put("cancelled", false);
@@ -141,6 +151,7 @@ public class ParticipantManager {
             participants.add(participant);
         }
         saveAllParticipants();
+        SystemLogger.info("Participant added: " + participant.getId());
     }
 
     public Participant findParticipant(String searchKey) {
@@ -179,5 +190,6 @@ public class ParticipantManager {
             participants.removeAll(toRemove);
         }
         saveAllParticipants();
+        SystemLogger.info("Removed " + toRemove.size() + " participants");
     }
 }

@@ -10,6 +10,7 @@ public class Team {
     private double targetSkillLevel;
     private static int teamCounter = -1;
     private static final String COUNTER_FILE = "team_counter.dat";
+    private static boolean counterModified = false;
 
     public Team(int maxSize) {
         if (teamCounter == -1) {
@@ -23,11 +24,41 @@ public class Team {
 
     /**
      * Assigns final team ID with counter increment
+     * Counter is incremented but NOT saved to file yet
      */
     public void finalizeTeamId() {
         teamCounter++;
-        saveTeamCounter();
+        counterModified = true;  // Mark that counter was changed
         this.teamId = "TEAM" + String.format("%04d", teamCounter);
+    }
+
+    /**
+     * Save team counter to file
+     * Should be called only when teams are exported/finalized
+     */
+    public static synchronized void saveTeamCounterToFile() {
+        if (!counterModified) {
+            return;  // No changes, don't save
+        }
+
+        try (PrintWriter pw = new PrintWriter(new FileWriter(COUNTER_FILE))) {
+            pw.println(teamCounter);
+            pw.flush();
+            counterModified = false;  // Reset flag after saving
+            System.out.println("[System] Team counter saved: Next team will be TEAM" +
+                    String.format("%04d", teamCounter + 1));
+        } catch (IOException e) {
+            System.err.println("[System] Warning: Could not save team counter");
+        }
+    }
+
+    /**
+     * Reset counter to previous value if teams are not finalized
+     * Call this when generation is cancelled or not exported
+     */
+    public static synchronized void resetCounter(int previousValue) {
+        teamCounter = previousValue;
+        counterModified = false;
     }
 
     private static synchronized void loadTeamCounter() {
@@ -51,15 +82,6 @@ public class Team {
         } catch (Exception e) {
             System.out.println("[System] Could not load counter, starting from TEAM0001");
             teamCounter = 0;
-        }
-    }
-
-    private static synchronized void saveTeamCounter() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(COUNTER_FILE))) {
-            pw.println(teamCounter);
-            pw.flush();
-        } catch (IOException e) {
-            System.err.println("[System] Warning: Could not save team counter");
         }
     }
 

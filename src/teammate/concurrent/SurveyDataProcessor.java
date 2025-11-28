@@ -2,16 +2,20 @@ package teammate.concurrent;
 
 import teammate.entity.Participant;
 import teammate.util.ValidationUtil;
+import teammate.util.PersonalityClassifier;
+import teammate.util.SystemLogger;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Concurrent processor for survey data from CSV files
- * Processes participant records in parallel using thread pool
+ * Concurrent processor for survey data
+ * Handles both CSV file processing AND individual survey submissions
  */
 public class SurveyDataProcessor {
     private static final int THREAD_POOL_SIZE = 4;
+
+    // ==================== CSV PROCESSING ====================
 
     /**
      * Process CSV file concurrently, validating and parsing participant data
@@ -20,9 +24,12 @@ public class SurveyDataProcessor {
                                                    List<Participant> existingParticipants)
             throws Exception {
 
+        SystemLogger.info("Starting CSV processing: " + filename);
+
         List<String> lines = readAllLines(filename);
 
         if (lines.isEmpty()) {
+            SystemLogger.error("CSV file is empty");
             throw new Exception("CSV file is empty");
         }
 
@@ -38,7 +45,7 @@ public class SurveyDataProcessor {
         // Submit all lines for concurrent processing
         for (int i = 0; i < lines.size(); i++) {
             final String line = lines.get(i);
-            final int lineNumber = i + 2; // +2 because header is line 1
+            final int lineNumber = i + 2;
 
             futures.add(executor.submit(() ->
                     processLine(line, lineNumber, existingParticipants)));
@@ -62,6 +69,7 @@ public class SurveyDataProcessor {
                 }
 
             } catch (Exception e) {
+                SystemLogger.logException("CSV processing error", e);
                 result.addInvalidRecord("Processing error: " + e.getMessage());
             }
         }
@@ -69,14 +77,12 @@ public class SurveyDataProcessor {
         executor.shutdown();
         executor.awaitTermination(30, TimeUnit.SECONDS);
 
+        SystemLogger.success("CSV processing complete: " + result.getNewCount() + " new");
         System.out.println("[System] Concurrent processing complete.");
 
         return result;
     }
 
-    /**
-     * Process a single line from CSV
-     */
     private ParticipantResult processLine(String line, int lineNumber,
                                           List<Participant> existingParticipants) {
         try {
@@ -96,13 +102,11 @@ public class SurveyDataProcessor {
             int personalityScore = Integer.parseInt(parts[6].trim());
             String personalityType = parts[7].trim();
 
-            // Validate ID format
             if (!ValidationUtil.isValidParticipantId(id)) {
                 return ParticipantResult.invalid(
                         "Line " + lineNumber + ": Invalid ID format (must start with 'P')");
             }
 
-            // Check for duplicates (thread-safe read)
             synchronized (existingParticipants) {
                 Participant existing = findByIdOrEmail(existingParticipants, id, email);
 
@@ -117,7 +121,6 @@ public class SurveyDataProcessor {
                 }
             }
 
-            // Valid new participant
             Participant newParticipant = new Participant(
                     id, name, email, preferredGame, skillLevel,
                     preferredRole, personalityScore, personalityType);
@@ -133,38 +136,80 @@ public class SurveyDataProcessor {
         }
     }
 
-    /**
-     * Read all lines from file
-     */
     private List<String> readAllLines(String filename) throws IOException {
         List<String> lines = new ArrayList<>();
-
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
             String line;
             while ((line = br.readLine()) != null) {
                 lines.add(line);
             }
         }
-
         return lines;
     }
 
-    /**
-     * Find participant by ID or email
-     */
-    private Participant findByIdOrEmail(List<Participant> participants,
-                                        String id, String email) {
+    private Participant findByIdOrEmail(List<Participant> participants, String id, String email) {
         for (Participant p : participants) {
-            if (p.getId().equalsIgnoreCase(id) ||
-                    p.getEmail().equalsIgnoreCase(email)) {
+            if (p.getId().equalsIgnoreCase(id) || p.getEmail().equalsIgnoreCase(email)) {
                 return p;
             }
         }
         return null;
     }
 
+    // ==================== INDIVIDUAL SURVEY PROCESSING ====================
+
     /**
-     * Result holder for individual participant processing
+     * Process individual survey submission using threads
+     */
+    public static SurveyResult processIndividualSurvey(String id, String name, String email,
+                                                       String preferredGame, int skillLevel,
+                                                       String preferredRole, int personalityScore) {
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            SystemLogger.info("Processing survey for: " + id);
+
+            // Calculate personality using thread
+            Future<String> personalityTask = executor.submit(() -> {
+                SystemLogger.info("Thread calculating personality - score: " + personalityScore);
+                try {
+                    return PersonalityClassifier.classifyPersonality(personalityScore);
+                } catch (IllegalArgumentException e) {
+                    throw new Exception(e.getMessage());
+                }
+            });
+
+            String personalityType = personalityTask.get();
+
+            Participant participant = new Participant(id, name, email, preferredGame,
+                    skillLevel, preferredRole,
+                    personalityScore, personalityType);
+
+            SystemLogger.success("Survey processed: " + id + " - " + personalityType);
+
+            return SurveyResult.success(participant, personalityType);
+
+        } catch (ExecutionException e) {
+            SystemLogger.error("Survey processing failed: " + e.getCause().getMessage());
+            return SurveyResult.failure(e.getCause().getMessage());
+        } catch (Exception e) {
+            SystemLogger.logException("Survey processing error", e);
+            return SurveyResult.failure("Processing error: " + e.getMessage());
+        } finally {
+            executor.shutdown();
+            try {
+                executor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+            }
+        }
+    }
+
+    // ==================== RESULT CLASSES ====================
+
+    /**
+     * Result for CSV line processing
      */
     private static class ParticipantResult {
         private Participant participant;
@@ -175,8 +220,7 @@ public class SurveyDataProcessor {
             VALID, DUPLICATE_AVAILABLE, DUPLICATE_ASSIGNED, INVALID
         }
 
-        private ParticipantResult(Participant participant, String errorMessage,
-                                  ResultType type) {
+        private ParticipantResult(Participant participant, String errorMessage, ResultType type) {
             this.participant = participant;
             this.errorMessage = errorMessage;
             this.type = type;
@@ -206,7 +250,7 @@ public class SurveyDataProcessor {
     }
 
     /**
-     * Aggregated result of processing entire CSV
+     * Aggregated result for CSV processing
      */
     public static class ProcessingResult {
         private List<Participant> newParticipants;
@@ -221,41 +265,50 @@ public class SurveyDataProcessor {
             this.invalidRecords = new ArrayList<>();
         }
 
-        synchronized void addNewParticipant(Participant p) {
-            newParticipants.add(p);
-        }
+        synchronized void addNewParticipant(Participant p) { newParticipants.add(p); }
+        synchronized void addDuplicateAvailable(String msg) { duplicateAvailable.add(msg); }
+        synchronized void addDuplicateAssigned(String msg) { duplicateAssigned.add(msg); }
+        synchronized void addInvalidRecord(String msg) { invalidRecords.add(msg); }
 
-        synchronized void addDuplicateAvailable(String msg) {
-            duplicateAvailable.add(msg);
-        }
-
-        synchronized void addDuplicateAssigned(String msg) {
-            duplicateAssigned.add(msg);
-        }
-
-        synchronized void addInvalidRecord(String msg) {
-            invalidRecords.add(msg);
-        }
-
-        public List<Participant> getNewParticipants() {
-            return new ArrayList<>(newParticipants);
-        }
-
-        public List<String> getDuplicateAvailable() {
-            return new ArrayList<>(duplicateAvailable);
-        }
-
-        public List<String> getDuplicateAssigned() {
-            return new ArrayList<>(duplicateAssigned);
-        }
-
-        public List<String> getInvalidRecords() {
-            return new ArrayList<>(invalidRecords);
-        }
+        public List<Participant> getNewParticipants() { return new ArrayList<>(newParticipants); }
+        public List<String> getDuplicateAvailable() { return new ArrayList<>(duplicateAvailable); }
+        public List<String> getDuplicateAssigned() { return new ArrayList<>(duplicateAssigned); }
+        public List<String> getInvalidRecords() { return new ArrayList<>(invalidRecords); }
 
         public int getNewCount() { return newParticipants.size(); }
         public int getDuplicateAvailableCount() { return duplicateAvailable.size(); }
         public int getDuplicateAssignedCount() { return duplicateAssigned.size(); }
         public int getInvalidCount() { return invalidRecords.size(); }
+    }
+
+    /**
+     * Result for individual survey processing
+     */
+    public static class SurveyResult {
+        private boolean success;
+        private Participant participant;
+        private String personalityType;
+        private String errorMessage;
+
+        private SurveyResult(boolean success, Participant participant,
+                             String personalityType, String errorMessage) {
+            this.success = success;
+            this.participant = participant;
+            this.personalityType = personalityType;
+            this.errorMessage = errorMessage;
+        }
+
+        public static SurveyResult success(Participant participant, String personalityType) {
+            return new SurveyResult(true, participant, personalityType, null);
+        }
+
+        public static SurveyResult failure(String errorMessage) {
+            return new SurveyResult(false, null, null, errorMessage);
+        }
+
+        public boolean isSuccess() { return success; }
+        public Participant getParticipant() { return participant; }
+        public String getPersonalityType() { return personalityType; }
+        public String getErrorMessage() { return errorMessage; }
     }
 }
