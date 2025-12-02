@@ -1,114 +1,65 @@
 package teammate.entity;
 
-import java.util.*;
+import teammate.util.SystemLogger;
 import java.io.*;
+import java.util.*;
 
+/**
+ * Represents a team with unique sequential ID, members, and statistics
+ * COMPLETE CORRECTED VERSION - All methods included
+ */
 public class Team {
+    private static final String COUNTER_FILE = "team_counter.dat";
+    private static int teamCounter = -1;
+    private static int previousValue = -1;
+    private static boolean counterModified = false;
+
     private String teamId;
     private List<Participant> members;
     private int maxSize;
+    private double averageSkillLevel;
+    private Map<String, Integer> roleDistribution;
+    private Map<String, Integer> personalityDistribution;
+    private Map<String, Integer> gameDistribution;
     private double targetSkillLevel;
-    private static int teamCounter = -1;
-    private static final String COUNTER_FILE = "team_counter.dat";
-    private static boolean counterModified = false;
 
     public Team(int maxSize) {
-        if (teamCounter == -1) {
-            loadTeamCounter();
-        }
-        this.teamId = "TEMP_ID";
         this.members = new ArrayList<>();
         this.maxSize = maxSize;
-        this.targetSkillLevel = 0;
-    }
-
-    /**
-     * Assigns final team ID with counter increment
-     * Counter is incremented but NOT saved to file yet
-     */
-    public void finalizeTeamId() {
-        teamCounter++;
-        counterModified = true;  // Mark that counter was changed
-        this.teamId = "TEAM" + String.format("%04d", teamCounter);
-    }
-
-    /**
-     * Save team counter to file
-     * Should be called only when teams are exported/finalized
-     */
-    public static synchronized void saveTeamCounterToFile() {
-        if (!counterModified) {
-            return;  // No changes, don't save
-        }
-
-        try (PrintWriter pw = new PrintWriter(new FileWriter(COUNTER_FILE))) {
-            pw.println(teamCounter);
-            pw.flush();
-            counterModified = false;  // Reset flag after saving
-            System.out.println("[System] Team counter saved: Next team will be TEAM" +
-                    String.format("%04d", teamCounter + 1));
-        } catch (IOException e) {
-            System.err.println("[System] Warning: Could not save team counter");
-        }
-    }
-
-    /**
-     * Reset counter to previous value if teams are not finalized
-     * Call this when generation is cancelled or not exported
-     */
-    public static synchronized void resetCounter(int previousValue) {
-        teamCounter = previousValue;
-        counterModified = false;
-    }
-
-    private static synchronized void loadTeamCounter() {
-        File file = new File(COUNTER_FILE);
-
-        if (!file.exists()) {
-            teamCounter = 0;
-            System.out.println("[System] Starting fresh - First team will be TEAM0001");
-            return;
-        }
-
-        try (BufferedReader br = new BufferedReader(new FileReader(COUNTER_FILE))) {
-            String line = br.readLine();
-            if (line != null && !line.trim().isEmpty()) {
-                teamCounter = Integer.parseInt(line.trim());
-                System.out.println("[System] Loaded team counter - Next team: TEAM" +
-                        String.format("%04d", teamCounter + 1));
-            } else {
-                teamCounter = 0;
-            }
-        } catch (Exception e) {
-            System.out.println("[System] Could not load counter, starting from TEAM0001");
-            teamCounter = 0;
-        }
-    }
-
-    public void setTargetSkillLevel(double target) {
-        this.targetSkillLevel = target;
-    }
-
-    public double getTargetSkillLevel() {
-        return targetSkillLevel;
-    }
-
-    public boolean addMember(Participant participant) {
-        if (members.size() < maxSize) {
-            members.add(participant);
-            return true;
-        }
-        return false;
-    }
-
-    public List<Participant> getMembers() {
-        return new ArrayList<>(members);
+        this.roleDistribution = new HashMap<>();
+        this.personalityDistribution = new HashMap<>();
+        this.gameDistribution = new HashMap<>();
+        this.teamId = "TEMP_ID";
     }
 
     public String getTeamId() {
         return teamId;
     }
 
+    public List<Participant> getMembers() {
+        return new ArrayList<>(members);
+    }
+
+    public boolean addMember(Participant participant) {
+        if (participant != null && members.size() < maxSize) {
+            members.add(participant);
+            updateStatistics();
+            return true;
+        }
+        return false;
+    }
+
+    public void setTargetSkillLevel(double targetSkillLevel) {
+        this.targetSkillLevel = targetSkillLevel;
+    }
+
+    public double getTargetSkillLevel() {
+        return targetSkillLevel;
+    }
+
+    /**
+     * Check if participant is a member of this team
+     */
     public boolean hasMember(Participant participant) {
         for (Participant member : members) {
             if (member.getId().equals(participant.getId())) {
@@ -118,81 +69,179 @@ public class Team {
         return false;
     }
 
-    public double getAverageSkill() {
-        if (members.isEmpty()) return 0;
+    /**
+     * Assigns unique sequential team ID
+     * Thread-safe for concurrent team formation
+     */
+    public synchronized void finalizeTeamId() {
+        if (teamCounter == -1) {
+            loadTeamCounter();
+        }
 
+        if (previousValue == -1) {
+            previousValue = teamCounter;
+        }
+
+        teamCounter++;
+        counterModified = true;
+        teamId = "TEAM" + String.format("%04d", teamCounter);
+    }
+
+    /**
+     * Resets counter to its value before current team generation
+     */
+    public static synchronized void resetTeamCounter() {
+        teamCounter = previousValue;
+        counterModified = false;
+    }
+
+    private static synchronized void loadTeamCounter() {
+        File file = new File(COUNTER_FILE);
+
+        if (!file.exists()) {
+            teamCounter = 0;
+            SystemLogger.info("Starting fresh - First team will be TEAM0001");
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(COUNTER_FILE))) {
+            String line = br.readLine();
+            if (line != null && !line.trim().isEmpty()) {
+                teamCounter = Integer.parseInt(line.trim());
+                SystemLogger.info("Loaded team counter - Next team: TEAM" +
+                        String.format("%04d", teamCounter + 1));
+            } else {
+                teamCounter = 0;
+            }
+        } catch (Exception e) {
+            SystemLogger.warning("Could not load counter, starting from TEAM0001");
+            teamCounter = 0;
+        }
+    }
+
+    /**
+     * Saves the current team counter to file
+     */
+    public static synchronized void saveTeamCounterToFile() {
+        if (!counterModified) return;
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(COUNTER_FILE))) {
+            writer.write(String.valueOf(teamCounter));
+            SystemLogger.success("Team counter saved: " + teamCounter);
+        } catch (IOException e) {
+            SystemLogger.error("Failed to save team counter: " + e.getMessage());
+        }
+    }
+
+    private void updateStatistics() {
+        if (members.isEmpty()) return;
+
+        // Calculate average skill
         int totalSkill = 0;
         for (Participant p : members) {
             totalSkill += p.getSkillLevel();
         }
+        averageSkillLevel = (double) totalSkill / members.size();
 
-        return (double) totalSkill / members.size();
+        // Update distributions
+        roleDistribution.clear();
+        personalityDistribution.clear();
+        gameDistribution.clear();
+
+        for (Participant p : members) {
+            roleDistribution.merge(p.getPreferredRole(), 1, Integer::sum);
+            personalityDistribution.merge(p.getPersonalityType(), 1, Integer::sum);
+            gameDistribution.merge(p.getPreferredGame(), 1, Integer::sum);
+        }
+    }
+
+    public double getAverageSkill() {
+        return averageSkillLevel;
+    }
+
+    public double getAverageSkillLevel() {
+        return averageSkillLevel;
     }
 
     public Map<String, Integer> getRoleDistribution() {
-        Map<String, Integer> distribution = new HashMap<>();
-        for (Participant p : members) {
-            distribution.put(p.getPreferredRole(),
-                    distribution.getOrDefault(p.getPreferredRole(), 0) + 1);
-        }
-        return distribution;
+        return new HashMap<>(roleDistribution);
     }
 
     public Map<String, Integer> getPersonalityDistribution() {
-        Map<String, Integer> distribution = new HashMap<>();
-        for (Participant p : members) {
-            distribution.put(p.getPersonalityType(),
-                    distribution.getOrDefault(p.getPersonalityType(), 0) + 1);
-        }
-        return distribution;
+        return new HashMap<>(personalityDistribution);
     }
 
     public Map<String, Integer> getGameDistribution() {
-        Map<String, Integer> distribution = new HashMap<>();
-        for (Participant p : members) {
-            distribution.put(p.getPreferredGame(),
-                    distribution.getOrDefault(p.getPreferredGame(), 0) + 1);
-        }
-        return distribution;
+        return new HashMap<>(gameDistribution);
     }
 
+    /**
+     * Displays comprehensive team information
+     */
     public void displayTeamInfo() {
         System.out.println("\n" + "=".repeat(50));
         System.out.println("Team ID: " + teamId);
         System.out.println("Team Size: " + members.size() + "/" + maxSize);
-        System.out.println("Average Skill Level: " + String.format("%.2f", getAverageSkill()));
+        System.out.println("Average Skill Level: " + String.format("%.2f", averageSkillLevel));
         System.out.println("=".repeat(50));
 
         System.out.println("\nMembers:");
         for (int i = 0; i < members.size(); i++) {
             Participant p = members.get(i);
-            System.out.printf("%d. %s\n", (i + 1), p.toString());
+            System.out.println((i + 1) + ". " + p.getId() + " - " + p.getName() +
+                    " (" + p.getEmail() + ") | Game: " + p.getPreferredGame() +
+                    " | Skill: " + p.getSkillLevel() + " | Role: " + p.getPreferredRole() +
+                    " | Type: " + p.getPersonalityType());
         }
 
         System.out.println("\nRole Distribution:");
-        getRoleDistribution().forEach((role, count) ->
+        roleDistribution.forEach((role, count) ->
                 System.out.println("  " + role + ": " + count));
 
         System.out.println("\nPersonality Distribution:");
-        getPersonalityDistribution().forEach((type, count) ->
+        personalityDistribution.forEach((type, count) ->
                 System.out.println("  " + type + ": " + count));
 
         System.out.println("\nGame Distribution:");
-        getGameDistribution().forEach((game, count) ->
+        gameDistribution.forEach((game, count) ->
                 System.out.println("  " + game + ": " + count));
     }
 
+    /**
+     * Converts team to CSV format for export (for snapshot file)
+     */
     public String toCSVString() {
         StringBuilder sb = new StringBuilder();
         sb.append(teamId).append(",");
         sb.append(members.size()).append(",");
-        sb.append(String.format("%.2f", getAverageSkill())).append(",");
+        sb.append(String.format("%.2f", averageSkillLevel)).append(",");
 
         for (int i = 0; i < members.size(); i++) {
             sb.append(members.get(i).getId());
             if (i < members.size() - 1) sb.append(";");
         }
         return sb.toString();
+    }
+
+    /**
+     * Converts team to CSV format for cumulative file (detailed member info)
+     */
+    public String toCSV() {
+        StringBuilder csv = new StringBuilder();
+
+        for (Participant p : members) {
+            csv.append(teamId).append(",")
+                    .append(p.getId()).append(",")
+                    .append(p.getName()).append(",")
+                    .append(p.getEmail()).append(",")
+                    .append(p.getPreferredGame()).append(",")
+                    .append(p.getSkillLevel()).append(",")
+                    .append(p.getPreferredRole()).append(",")
+                    .append(p.getPersonalityScore()).append(",")
+                    .append(p.getPersonalityType()).append("\n");
+        }
+
+        return csv.toString();
     }
 
     @Override

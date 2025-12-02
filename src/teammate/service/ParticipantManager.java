@@ -6,6 +6,7 @@ import teammate.concurrent.SurveyDataProcessor;
 import teammate.util.FileManager;
 import teammate.util.ValidationUtil;
 import teammate.util.SystemLogger;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -68,8 +69,8 @@ public class ParticipantManager {
     }
 
     /**
-     * Process external CSV with CONCURRENT processing using threads
-     * Uses SurveyDataProcessor for separation of concerns
+     * Process external CSV file
+     * Simple sequential processing with validation
      */
     public Map<String, Object> processExternalCSV(String filename, Scanner scanner)
             throws Exception {
@@ -78,15 +79,51 @@ public class ParticipantManager {
 
         SystemLogger.info("Starting CSV upload: " + filename);
 
-        // Use SurveyDataProcessor for CSV processing
-        SurveyDataProcessor processor = new SurveyDataProcessor();
-        SurveyDataProcessor.ProcessingResult processingResult =
-                processor.processCSVConcurrently(filename, participants);
+        // Read all lines from CSV
+        List<String> lines = readAllLines(filename);
 
-        List<Participant> newlyAdded = processingResult.getNewParticipants();
-        List<String> duplicateAssigned = processingResult.getDuplicateAssigned();
-        List<String> duplicateAvailable = processingResult.getDuplicateAvailable();
-        List<String> invalidRecords = processingResult.getInvalidRecords();
+        if (lines.isEmpty()) {
+            throw new Exception("CSV file is empty");
+        }
+
+        // Remove header
+        lines.remove(0);
+
+        System.out.println("\n[System] Processing " + lines.size() + " records...");
+
+        // Categorize results
+        List<Participant> newParticipants = new ArrayList<>();
+        List<String> duplicateAvailable = new ArrayList<>();
+        List<String> duplicateAssigned = new ArrayList<>();
+        List<String> invalidRecords = new ArrayList<>();
+
+        // Process each line sequentially
+        synchronized (participants) {
+            for (String line : lines) {
+                ParticipantRecord record = parseLine(line);
+
+                if (record.isValid()) {
+                    // Check for duplicates
+                    Participant existing = findByIdOrEmail(record.getParticipant().getId(),
+                            record.getParticipant().getEmail());
+
+                    if (existing != null) {
+                        if (existing.getStatus().equals("Available")) {
+                            duplicateAvailable.add(record.getParticipant().getId() +
+                                    " (" + record.getParticipant().getEmail() + ")");
+                        } else if (existing.getStatus().equals("Assigned")) {
+                            duplicateAssigned.add(record.getParticipant().getId() +
+                                    " - " + record.getParticipant().getName() +
+                                    " (" + record.getParticipant().getEmail() + ")");
+                        }
+                    } else {
+                        newParticipants.add(record.getParticipant());
+                    }
+                } else {
+                    invalidRecords.add(record.getErrorMessage());
+                }
+            }
+        }
 
         // Handle assigned duplicates
         if (!duplicateAssigned.isEmpty()) {
@@ -126,23 +163,86 @@ public class ParticipantManager {
         }
 
         // Add new participants to main list
-        if (!newlyAdded.isEmpty()) {
+        if (!newParticipants.isEmpty()) {
             synchronized (participants) {
-                participants.addAll(newlyAdded);
+                participants.addAll(newParticipants);
             }
             saveAllParticipants();
-            System.out.println("\n✓ Successfully added " + newlyAdded.size() +
+            System.out.println("\n✓ Successfully added " + newParticipants.size() +
                     " new participants");
-            SystemLogger.success("CSV upload complete: " + newlyAdded.size() + " added");
+            SystemLogger.success("CSV upload complete: " + newParticipants.size() + " added");
         }
 
         result.put("cancelled", false);
-        result.put("newlyAdded", newlyAdded);
+        result.put("newlyAdded", newParticipants);
         result.put("duplicateAvailable", duplicateAvailable.size());
         result.put("duplicateAssigned", duplicateAssigned.size());
         result.put("invalidRecords", invalidRecords.size());
 
         return result;
+    }
+
+    /**
+     * Read all lines from CSV file
+     */
+    private List<String> readAllLines(String filename) throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * Parse a single CSV line to Participant
+     */
+    private ParticipantRecord parseLine(String line) {
+        try {
+            String[] parts = line.split(",");
+
+            if (parts.length < 8) {
+                return ParticipantRecord.invalid("Missing fields");
+            }
+
+            String id = parts[0].trim();
+            String name = parts[1].trim();
+            String email = parts[2].trim();
+            String preferredGame = parts[3].trim();
+            int skillLevel = Integer.parseInt(parts[4].trim());
+            String preferredRole = parts[5].trim();
+            int personalityScore = Integer.parseInt(parts[6].trim());
+            String personalityType = parts[7].trim();
+
+            if (!ValidationUtil.isValidParticipantId(id)) {
+                return ParticipantRecord.invalid("Invalid ID format: " + id);
+            }
+
+            Participant participant = new Participant(
+                    id, name, email, preferredGame, skillLevel,
+                    preferredRole, personalityScore, personalityType);
+
+            return ParticipantRecord.valid(participant);
+
+        } catch (NumberFormatException e) {
+            return ParticipantRecord.invalid("Invalid number format");
+        } catch (Exception e) {
+            return ParticipantRecord.invalid(e.getMessage());
+        }
+    }
+
+    /**
+     * Find participant by ID or email
+     */
+    private Participant findByIdOrEmail(String id, String email) {
+        for (Participant p : participants) {
+            if (p.getId().equalsIgnoreCase(id) || p.getEmail().equalsIgnoreCase(email)) {
+                return p;
+            }
+        }
+        return null;
     }
 
     public void addParticipant(Participant participant)
@@ -191,5 +291,32 @@ public class ParticipantManager {
         }
         saveAllParticipants();
         SystemLogger.info("Removed " + toRemove.size() + " participants");
+    }
+
+    /**
+     * Internal class to hold parsing results
+     */
+    private static class ParticipantRecord {
+        private Participant participant;
+        private String errorMessage;
+        private boolean valid;
+
+        private ParticipantRecord(Participant participant, String errorMessage, boolean valid) {
+            this.participant = participant;
+            this.errorMessage = errorMessage;
+            this.valid = valid;
+        }
+
+        static ParticipantRecord valid(Participant p) {
+            return new ParticipantRecord(p, null, true);
+        }
+
+        static ParticipantRecord invalid(String msg) {
+            return new ParticipantRecord(null, msg, false);
+        }
+
+        boolean isValid() { return valid; }
+        Participant getParticipant() { return participant; }
+        String getErrorMessage() { return errorMessage; }
     }
 }

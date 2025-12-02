@@ -28,7 +28,7 @@ public class BatchProcessor implements Callable<List<Team>> {
         Collections.shuffle(available);
 
         int attempts = 0;
-        double skillTolerance = 0.15;
+        double skillTolerance = 0.10;
 
         while (available.size() >= teamSize && attempts < 100) {
             Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
@@ -45,8 +45,8 @@ public class BatchProcessor implements Callable<List<Team>> {
             } else {
                 attempts++;
 
-                if (attempts % 10 == 0 && skillTolerance < 0.35) {
-                    skillTolerance += 0.05;
+                if (attempts % 10 == 0 && skillTolerance < 0.15) {
+                    skillTolerance += 0.02;
                     Collections.shuffle(available);
                 }
             }

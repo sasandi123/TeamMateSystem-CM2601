@@ -1,5 +1,9 @@
 package teammate.util;
 
+/**
+ * Validation utilities for TeamMate System
+ * Provides input validation for IDs, emails, names, games, and other fields
+ */
 public class ValidationUtil {
 
     /**
@@ -44,5 +48,47 @@ public class ValidationUtil {
             }
         }
         return false;
+    }
+
+    /**
+     * Validates name format - must contain only letters and spaces
+     * No numbers or special characters allowed
+     */
+    public static boolean isValidName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+
+        String trimmedName = name.trim();
+
+        // Must be at least 2 characters
+        if (trimmedName.length() < 2) {
+            return false;
+        }
+
+        // Must contain only letters, spaces, hyphens, and apostrophes
+        // Allows names like "Mary-Jane" or "O'Brien"
+        return trimmedName.matches("^[a-zA-Z][a-zA-Z\\s'-]*[a-zA-Z]$");
+    }
+
+    /**
+     * Validates game name format - must contain only letters, numbers, spaces, and basic punctuation
+     * No special characters that could cause file/database issues
+     */
+    public static boolean isValidGameName(String game) {
+        if (game == null || game.trim().isEmpty()) {
+            return false;
+        }
+
+        String trimmedGame = game.trim();
+
+        // Must be at least 2 characters
+        if (trimmedGame.length() < 2) {
+            return false;
+        }
+
+        // Allows letters, numbers, spaces, hyphens, apostrophes, and colons
+        // Examples: "Call of Duty", "FIFA 23", "League of Legends"
+        return trimmedGame.matches("^[a-zA-Z0-9][a-zA-Z0-9\\s:'-]*[a-zA-Z0-9]$");
     }
 }

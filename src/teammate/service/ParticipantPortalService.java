@@ -11,6 +11,7 @@ import java.util.Scanner;
 
 /**
  * Service for participant portal operations
+ * Clean version with proper validation and minimal noise
  */
 public class ParticipantPortalService {
     private ParticipantManager participantManager;
@@ -47,50 +48,49 @@ public class ParticipantPortalService {
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input. Please enter a number.");
             } catch (Exception e) {
-                SystemLogger.logException("Participant Portal Error", e);
                 System.out.println("Error: " + e.getMessage());
             }
         }
     }
 
     /**
-     * Submit survey - delegates processing to SurveyDataProcessor
+     * Submit survey with proper validation
      */
     private void submitSurvey(Scanner scanner) {
         try {
             System.out.println("\n--- SUBMIT SURVEY ---");
-            SystemLogger.info("Participant started survey submission");
 
+            // Get and validate ID
             String id = getValidParticipantId(scanner);
             if (id == null) return;
 
+            // Get and validate email
             String email = getValidEmail(scanner);
             if (email == null) return;
 
-            // Validate credentials
+            // Validate credentials (check duplicates)
             String validationResult = participantManager.validateParticipantCredentials(id, email);
 
             if (validationResult.equals("ID_EXISTS")) {
                 System.out.println("✗ Registration Failed: A participant with ID '" + id + "' already exists.");
-                SystemLogger.warning("Survey failed: ID exists - " + id);
                 return;
             }
 
             if (validationResult.equals("EMAIL_EXISTS")) {
                 System.out.println("✗ Registration Failed: A participant with email '" + email + "' already exists.");
-                SystemLogger.warning("Survey failed: Email exists - " + email);
                 return;
             }
 
-            System.out.println("✓ ID and Email validated successfully. Please complete the survey.\n");
+            System.out.println("✓ ID and Email validated successfully.\n");
 
-            String name = getNonEmptyInput(scanner, "Enter Full Name: ");
-            String preferredGame = getNonEmptyInput(scanner, "Enter Preferred Game: ");
+            // Get personal details with validation
+            String name = getValidName(scanner);
+            String preferredGame = getValidGameName(scanner);
             int skillLevel = getUserIntInput(scanner, "Enter Skill Level (1-10): ", 1, 10);
             String preferredRole = getValidRole(scanner);
             int personalityScore = runPersonalitySurvey(scanner);
 
-            // Delegate to SurveyDataProcessor (separation of concerns)
+            // Process survey using concurrent processor
             SurveyDataProcessor.SurveyResult result = SurveyDataProcessor.processIndividualSurvey(
                     id, name, email, preferredGame, skillLevel, preferredRole, personalityScore
             );
@@ -121,13 +121,10 @@ public class ParticipantPortalService {
         System.out.print("Enter your Participant ID, Email, or Full Name: ");
         String searchKey = scanner.nextLine().trim();
 
-        SystemLogger.info("Team status check: " + searchKey);
-
         Participant p = participantManager.findParticipant(searchKey);
 
         if (p == null) {
             System.out.println("✗ Error: Participant not found.");
-            SystemLogger.warning("Participant not found: " + searchKey);
             return;
         }
 
@@ -204,16 +201,49 @@ public class ParticipantPortalService {
         }
     }
 
-    private String getNonEmptyInput(Scanner scanner, String prompt) {
+    /**
+     * Get valid name - must contain only letters and spaces
+     */
+    private String getValidName(Scanner scanner) {
         while (true) {
-            System.out.print(prompt);
-            String input = scanner.nextLine().trim();
+            System.out.print("Enter Full Name: ");
+            String name = scanner.nextLine().trim();
 
-            if (!input.isEmpty()) {
-                return input;
+            if (name.isEmpty()) {
+                System.out.println("✗ Name cannot be empty. Please try again.");
+                continue;
             }
 
-            System.out.println("✗ This field cannot be empty. Please try again.");
+            if (!ValidationUtil.isValidName(name)) {
+                System.out.println("✗ Invalid name format. Name must contain only letters and spaces.");
+                System.out.println("   Examples: John Smith, Mary-Jane, O'Brien");
+                continue;
+            }
+
+            return name;
+        }
+    }
+
+    /**
+     * Get valid game name - must be appropriate format
+     */
+    private String getValidGameName(Scanner scanner) {
+        while (true) {
+            System.out.print("Enter Preferred Game: ");
+            String game = scanner.nextLine().trim();
+
+            if (game.isEmpty()) {
+                System.out.println("✗ Game name cannot be empty. Please try again.");
+                continue;
+            }
+
+            if (!ValidationUtil.isValidGameName(game)) {
+                System.out.println("✗ Invalid game name format.");
+                System.out.println("   Examples: Valorant, Call of Duty, FIFA 23");
+                continue;
+            }
+
+            return game;
         }
     }
 

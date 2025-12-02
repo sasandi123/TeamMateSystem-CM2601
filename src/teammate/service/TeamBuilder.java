@@ -6,6 +6,10 @@ import teammate.util.FileManager;
 import teammate.util.TeamFormationHelper;
 import java.util.*;
 
+/**
+ * Builds and manages teams with skill balancing
+ * FINAL VERSION - Properly handles target skill from parallel processing
+ */
 public class TeamBuilder {
     private List<Team> teams;
     private double overallAverageSkill;
@@ -21,6 +25,18 @@ public class TeamBuilder {
 
     public int getTeamCount() {
         return teams.size();
+    }
+
+    /**
+     * Sets the target average skill level for display
+     * Used when parallel processing calculates it externally
+     */
+    public void setOverallAverageSkill(double skill) {
+        this.overallAverageSkill = skill;
+    }
+
+    public double getOverallAverageSkill() {
+        return overallAverageSkill;
     }
 
     /**
@@ -56,6 +72,7 @@ public class TeamBuilder {
 
     /**
      * Resets teams for new generation attempt
+     * Also resets the target skill
      */
     public void resetCurrentGenerationStatus() {
         if (teams.isEmpty()) return;
@@ -67,6 +84,7 @@ public class TeamBuilder {
         }
 
         this.teams.clear();
+        this.overallAverageSkill = 0; // Reset target skill
     }
 
     /**
@@ -105,7 +123,7 @@ public class TeamBuilder {
         Collections.shuffle(available);
 
         int attempts = 0;
-        double skillTolerance = 0.15;
+        double skillTolerance = 0.10;
 
         while (available.size() >= teamSize && attempts < 50) {
             Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
@@ -122,8 +140,8 @@ public class TeamBuilder {
             } else {
                 attempts++;
 
-                if (attempts % 10 == 0 && skillTolerance < 0.35) {
-                    skillTolerance += 0.05;
+                if (attempts % 10 == 0 && skillTolerance < 0.15) {
+                    skillTolerance += 0.02;
                     Collections.shuffle(available);
                 }
             }
@@ -157,5 +175,6 @@ public class TeamBuilder {
 
     public void clearTeams() {
         this.teams.clear();
+        this.overallAverageSkill = 0; // Also reset target skill
     }
 }

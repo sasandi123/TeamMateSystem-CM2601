@@ -5,9 +5,14 @@ import teammate.entity.Team;
 import teammate.exception.TeamMateException;
 import teammate.concurrent.TeamFormationEngine;
 import teammate.util.FileManager;
+import teammate.util.SystemLogger;
 import java.io.File;
 import java.util.*;
 
+/**
+ * Service for organizer portal operations
+ * Clean version with reduced verbose output
+ */
 public class OrganizerPortalService {
     private ParticipantManager participantManager;
     private TeamBuilder teamBuilder;
@@ -127,12 +132,9 @@ public class OrganizerPortalService {
                 participantsToUse = participantManager.getAvailableParticipants();
 
                 if (participantsToUse.isEmpty()) {
-                    System.out.println("\n" + "=".repeat(50));
-                    System.out.println("✗ NO AVAILABLE PARTICIPANTS");
-                    System.out.println("=".repeat(50));
+                    System.out.println("\n✗ NO AVAILABLE PARTICIPANTS");
                     System.out.println("All participants are already assigned to teams.");
                     System.out.println("Please upload a new participant file to continue.");
-                    System.out.println("=".repeat(50));
                     return;
                 }
 
@@ -146,7 +148,7 @@ public class OrganizerPortalService {
         currentAssignmentPool = new ArrayList<>(participantsToUse);
 
         if (participantsToUse.size() < 3) {
-            System.out.println("\n✗ Not enough participants (minimum 3 required).");
+            System.out.println("\n Not enough participants (minimum 3 required).");
             return;
         }
 
@@ -154,7 +156,6 @@ public class OrganizerPortalService {
         int teamSize = getUserIntInput(scanner, "", 3, participantsToUse.size());
 
         System.out.println("\nStarting team formation...");
-        System.out.println("Please wait...\n");
 
         long startTime = System.currentTimeMillis();
 
@@ -176,11 +177,8 @@ public class OrganizerPortalService {
         System.out.println("=".repeat(50));
 
         if (teamsFormed > 0) {
-            System.out.println("\n⚠ Teams generated but NOT finalized yet.");
-            System.out.println("Team IDs are temporary. Proceed to [5. Export & Finalize Teams] to:");
-            System.out.println("  - Assign permanent team IDs");
-            System.out.println("  - Save teams to files");
-            System.out.println("  - Update participant statuses");
+            System.out.println("\n Teams generated but NOT finalized yet.");
+            System.out.println("Proceed to [5. Export & Finalize Teams] to save permanently.");
         } else {
             System.out.println("\n⚠ No teams could be formed. Try adjusting team size.");
         }
@@ -225,13 +223,12 @@ public class OrganizerPortalService {
         teamBuilder.exportTeamsSnapshot(snapshotFilename);
         teamBuilder.appendTeamsToCumulative();
 
-        // NOW save the counter to file (only when finalized)
+        // Save the counter to file (for sequential numbering)
         Team.saveTeamCounterToFile();
 
         // Mark participants as assigned
         teamBuilder.markParticipantsAssigned();
         System.out.println("✓ " + assignedCount + " participants assigned to teams.");
-        System.out.println("✓ Assigned participant statuses updated in memory.");
 
         if (unassignedCount > 0) {
             System.out.println("\n" + unassignedCount + " participants remain unassigned.");
@@ -261,10 +258,6 @@ public class OrganizerPortalService {
         System.out.println("✓ EXPORT COMPLETE");
         System.out.println("=".repeat(50));
         System.out.println("Snapshot saved: " + snapshotFilename);
-        System.out.println("Historical records updated");
-        System.out.println("Participant statuses saved");
-        System.out.println("Team counter saved to file");
-        System.out.println("All changes saved successfully");
         System.out.println("=".repeat(50));
 
         teamBuilder.clearTeams();

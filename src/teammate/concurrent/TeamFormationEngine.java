@@ -36,13 +36,13 @@ public class TeamFormationEngine {
 
         boolean useParallel = participants.size() >= PARALLEL_THRESHOLD;
 
-        System.out.println("Processing " + participants.size() + " participants...");
-
         if (useParallel) {
             SystemLogger.info("Using PARALLEL processing mode");
+            System.out.println("Using parallel processing...");
             return buildTeamsParallel(participants, teamSize);
         } else {
             SystemLogger.info("Using SEQUENTIAL processing mode");
+            System.out.println("Using sequential processing...");
             return buildTeamsSequential(participants, teamSize);
         }
     }
@@ -85,12 +85,17 @@ public class TeamFormationEngine {
         int expectedTeams = Math.max(1, participants.size() / teamSize);
         double globalTargetSkill = (double) totalSkill / (expectedTeams * teamSize);
 
-        System.out.println("[System] Global target skill: " +
-                String.format("%.2f", globalTargetSkill));
+        // Show global target skill to user
+        System.out.println("Target average skill per team: " + String.format("%.2f", globalTargetSkill));
         SystemLogger.info("Global target skill: " + String.format("%.2f", globalTargetSkill));
+
+        // CRITICAL: Set target skill in TeamBuilder so it displays when viewing teams
+        teamBuilder.setOverallAverageSkill(globalTargetSkill);
 
         int actualThreads = Math.min(OPTIMAL_THREADS,
                 Math.max(2, participants.size() / (teamSize * 3)));
+
+        System.out.println("Processing with " + actualThreads + " concurrent threads...");
 
         ExecutorService executor = Executors.newFixedThreadPool(actualThreads);
         List<Future<List<Team>>> futures = new ArrayList<>();
@@ -98,9 +103,6 @@ public class TeamFormationEngine {
         try {
             int batchSize = Math.max(teamSize * 3, participants.size() / actualThreads);
             List<List<Participant>> batches = divideToBatches(participants, batchSize);
-
-            System.out.println("[System] Using " + actualThreads + " threads for " +
-                    batches.size() + " batches");
 
             for (List<Participant> batch : batches) {
                 // Pass GLOBAL target skill to ensure consistency across all batches
