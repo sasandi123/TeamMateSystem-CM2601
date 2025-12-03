@@ -88,7 +88,6 @@ public class ValidationUtil {
         }
 
         // Allows letters, numbers, spaces, hyphens, apostrophes, and colons
-        // Examples: "Call of Duty", "FIFA 23", "League of Legends"
         return trimmedGame.matches("^[a-zA-Z0-9][a-zA-Z0-9\\s:'-]*[a-zA-Z0-9]$");
     }
 }

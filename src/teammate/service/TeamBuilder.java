@@ -8,7 +8,6 @@ import java.util.*;
 
 /**
  * Builds and manages teams with skill balancing
- * FINAL VERSION - Properly handles target skill from parallel processing
  */
 public class TeamBuilder {
     private List<Team> teams;

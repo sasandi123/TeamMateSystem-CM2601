@@ -55,7 +55,6 @@ public class FileManager {
 
                     participants.add(participant);
                 } catch (Exception e) {
-                    // Skip invalid lines
                     SystemLogger.warning("Skipped invalid participant line: " + e.getMessage());
                 }
             }
@@ -64,13 +63,54 @@ public class FileManager {
 
         } catch (FileNotFoundException e) {
             SystemLogger.info("Participant file not found - starting fresh");
-            // File doesn't exist yet
         } catch (IOException e) {
             SystemLogger.logFileOperation("READ", ALL_REGISTERED_PARTICIPANTS, false);
             throw new TeamMateException.FileReadException("Error reading participant file: " + e.getMessage());
         }
 
         return participants;
+    }
+
+    /**
+     * Get latest assignment information for a participant
+     */
+    public static String getLatestAssignment(String participantId) {
+        String latestTeam = null;
+        String latestTimestamp = null;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(FORMED_TEAMS_CUMULATIVE))) {
+            String line = br.readLine();
+
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length >= 5) {
+                    String timestamp = parts[0];
+                    String teamId = parts[1];
+                    String memberIds = parts[4];
+
+                    String[] ids = memberIds.split(";");
+                    for (String id : ids) {
+                        if (id.trim().equalsIgnoreCase(participantId)) {
+                            latestTeam = teamId;
+                            latestTimestamp = timestamp;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (latestTeam != null) {
+                return "Last assigned to: " + latestTeam + " on " + latestTimestamp;
+            }
+
+        } catch (FileNotFoundException e) {
+            return "No previous assignment found";
+        } catch (IOException e) {
+            SystemLogger.logException("Error checking assignment history", e);
+            return "Could not verify assignment history";
+        }
+
+        return "No previous assignment found";
     }
 
     public static void exportTeamsSnapshot(List<Team> teams, String filename) throws TeamMateException.FileWriteException {
@@ -123,19 +163,19 @@ public class FileManager {
     }
 
     /**
-     * Search for a team and display FULL details including member information
+     * Search for a team and display FULL details - FOR ORGANIZERS
+     * Shows all distributions
      */
     public static void searchTeamById(String teamId, ParticipantManager participantManager) {
         SystemLogger.info("Team search requested: " + teamId);
 
         try (BufferedReader br = new BufferedReader(new FileReader(FORMED_TEAMS_CUMULATIVE))) {
-            String line = br.readLine(); // Skip header
+            String line = br.readLine();
 
             boolean found = false;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
                 if (parts.length >= 5 && parts[1].trim().equalsIgnoreCase(teamId)) {
-                    // Found the team - display full details
                     String timestamp = parts[0];
                     String tId = parts[1];
                     String teamSize = parts[2];
@@ -151,12 +191,10 @@ public class FileManager {
                     System.out.println("Average Skill: " + avgSkill);
                     System.out.println("=".repeat(60));
 
-                    // Get member details
                     String[] ids = memberIds.split(";");
                     System.out.println("\nTeam Members:");
 
                     Map<String, Integer> roleCount = new HashMap<>();
-                    Map<String, Integer> personalityCount = new HashMap<>();
                     Map<String, Integer> gameCount = new HashMap<>();
                     int leaderCount = 0;
                     int thinkerCount = 0;
@@ -171,15 +209,12 @@ public class FileManager {
                                     (i + 1), p.getId(), p.getName(), p.getPreferredGame(),
                                     p.getSkillLevel(), p.getPreferredRole(), p.getPersonalityType());
 
-                            // Count distributions
                             roleCount.put(p.getPreferredRole(),
                                     roleCount.getOrDefault(p.getPreferredRole(), 0) + 1);
                             gameCount.put(p.getPreferredGame(),
                                     gameCount.getOrDefault(p.getPreferredGame(), 0) + 1);
 
                             String type = p.getPersonalityType();
-                            personalityCount.put(type, personalityCount.getOrDefault(type, 0) + 1);
-
                             if (type.equals("Leader")) leaderCount++;
                             else if (type.equals("Thinker")) thinkerCount++;
                             else if (type.equals("Balanced")) balancedCount++;
@@ -188,7 +223,6 @@ public class FileManager {
                         }
                     }
 
-                    // Display distributions
                     System.out.println("\nRole Distribution:");
                     roleCount.forEach((role, count) ->
                             System.out.println("  " + role + ": " + count));
@@ -211,24 +245,28 @@ public class FileManager {
             }
 
             if (!found) {
-                System.out.println("\n✗ Team ID '" + teamId + "' not found in records.");
+                System.out.println("\n[X] Team ID '" + teamId + "' not found in records.");
                 SystemLogger.warning("Team not found: " + teamId);
             }
 
         } catch (FileNotFoundException e) {
-            System.out.println("\n✗ No team records found.");
+            System.out.println("\n[X] No team records found.");
             SystemLogger.error("Team records file not found");
         } catch (IOException e) {
-            System.out.println("\n✗ Error reading team records: " + e.getMessage());
+            System.out.println("\n[X] Error reading team records: " + e.getMessage());
             SystemLogger.logException("Error searching team", e);
         }
     }
 
     /**
-     * Find which team a participant belongs to
+     * UPDATED: Find most recent team for PARTICIPANTS
+     * Simple view without distributions
      */
-    public static void findParticipantTeamInCumulative(String participantId, ParticipantManager participantManager) {
-        SystemLogger.info("Searching team for participant: " + participantId);
+    public static void findMostRecentParticipantTeam(String participantId, ParticipantManager participantManager) {
+        SystemLogger.info("Searching most recent team for participant: " + participantId);
+
+        String mostRecentTeamId = null;
+        String mostRecentLine = null;
 
         try (BufferedReader br = new BufferedReader(new FileReader(FORMED_TEAMS_CUMULATIVE))) {
             String line = br.readLine();
@@ -237,23 +275,68 @@ public class FileManager {
                 String[] parts = line.split(",");
                 if (parts.length >= 5) {
                     String memberIds = parts[4];
-                    if (memberIds.contains(participantId)) {
-                        // Use the same detailed display
-                        searchTeamById(parts[1].trim(), participantManager);
-                        return;
+
+                    String[] ids = memberIds.split(";");
+                    for (String id : ids) {
+                        if (id.trim().equalsIgnoreCase(participantId)) {
+                            mostRecentTeamId = parts[1];
+                            mostRecentLine = line;
+                            break;
+                        }
                     }
                 }
             }
 
-            System.out.println("\n✗ No team assignment found in historical records.");
-            SystemLogger.warning("No team found for participant: " + participantId);
+            if (mostRecentTeamId != null) {
+                String[] parts = mostRecentLine.split(",");
+                String timestamp = parts[0];
+                String tId = parts[1];
+                String teamSize = parts[2];
+                String avgSkill = parts[3];
+                String memberIds = parts[4];
+
+                // SIMPLE VIEW FOR PARTICIPANTS
+                System.out.println("\n" + "=".repeat(50));
+                System.out.println("Team ID: " + tId);
+                System.out.println("Formation Date: " + timestamp);
+                System.out.println("Team Size: " + teamSize);
+                System.out.println("Average Skill Level: " + avgSkill);
+                System.out.println("=".repeat(50));
+
+                String[] ids = memberIds.split(";");
+                System.out.println("\nYour Teammates:");
+
+                for (int i = 0; i < ids.length; i++) {
+                    String id = ids[i].trim();
+                    Participant p = participantManager.findParticipant(id);
+
+                    if (p != null) {
+                        System.out.printf("%d. %s | Game: %s | Skill: %d | Role: %s\n",
+                                (i + 1), p.getName(), p.getPreferredGame(),
+                                p.getSkillLevel(), p.getPreferredRole());
+                    } else {
+                        System.out.printf("%d. %s (Details not available)\n", (i + 1), id);
+                    }
+                }
+
+                System.out.println("=".repeat(50));
+
+                SystemLogger.success("Most recent team found: " + mostRecentTeamId);
+            } else {
+                System.out.println("\n[X] No team assignment found in records.");
+                SystemLogger.warning("No team found for participant: " + participantId);
+            }
 
         } catch (FileNotFoundException e) {
-            System.out.println("\n✗ No team records found.");
+            System.out.println("\n[X] No team records found.");
             SystemLogger.error("Team records file not found");
         } catch (IOException e) {
-            System.out.println("\n✗ Error reading team records: " + e.getMessage());
+            System.out.println("\n[X] Error reading team records: " + e.getMessage());
             SystemLogger.logException("Error finding participant team", e);
         }
     }
+
+    /**
+     * UNUSED - Removed (was just calling searchTeamById)
+     */
 }

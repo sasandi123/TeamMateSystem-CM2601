@@ -6,7 +6,6 @@ import java.util.Date;
 
 /**
  * System-wide logging utility for tracking operations and errors
- * Week 6-7 Requirement: Add logging
  */
 public class SystemLogger {
     private static final String LOG_FILE = "teammate_system.log";

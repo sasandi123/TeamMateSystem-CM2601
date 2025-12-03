@@ -6,8 +6,7 @@ import java.util.Scanner;
 
 /**
  * Abstract base class for portal services
- * Demonstrates inheritance, polymorphism, and abstraction
- *
+
  * This class provides common functionality for both Participant and Organizer portals,
  * while allowing subclasses to implement their specific behavior.
  */
@@ -27,8 +26,7 @@ public abstract class PortalService {
     /**
      * Template method - defines the overall portal flow
      * This method controls the structure but delegates specific behavior to subclasses
-     *
-     * Demonstrates: Polymorphism (calls overridden methods)
+
      */
     public final void showPortal(Scanner scanner) {
         this.scanner = scanner;

@@ -6,7 +6,6 @@ import java.util.*;
 
 /**
  * Represents a team with unique sequential ID, members, and statistics
- * COMPLETE CORRECTED VERSION - All methods included
  */
 public class Team {
     private static final String COUNTER_FILE = "team_counter.dat";
@@ -223,29 +222,29 @@ public class Team {
         return sb.toString();
     }
 
-    /**
-     * Converts team to CSV format for cumulative file (detailed member info)
-     */
-    public String toCSV() {
-        StringBuilder csv = new StringBuilder();
-
-        for (Participant p : members) {
-            csv.append(teamId).append(",")
-                    .append(p.getId()).append(",")
-                    .append(p.getName()).append(",")
-                    .append(p.getEmail()).append(",")
-                    .append(p.getPreferredGame()).append(",")
-                    .append(p.getSkillLevel()).append(",")
-                    .append(p.getPreferredRole()).append(",")
-                    .append(p.getPersonalityScore()).append(",")
-                    .append(p.getPersonalityType()).append("\n");
-        }
-
-        return csv.toString();
-    }
 
     @Override
     public String toString() {
         return teamId + " (" + members.size() + " members)";
+    }
+    /**
+     * Simplified team display for participants - shows only essential info
+     */
+    public void displayTeamInfoForParticipant() {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("Team ID: " + teamId);
+        System.out.println("Team Size: " + members.size() + "/" + maxSize);
+        System.out.println("Average Skill Level: " + String.format("%.2f", averageSkillLevel));
+        System.out.println("=".repeat(50));
+
+        System.out.println("\nYour Teammates:");
+        for (int i = 0; i < members.size(); i++) {
+            Participant p = members.get(i);
+            System.out.println((i + 1) + ". " + p.getName() +
+                    " | Game: " + p.getPreferredGame() +
+                    " | Skill: " + p.getSkillLevel() +
+                    " | Role: " + p.getPreferredRole());
+        }
+        System.out.println("=".repeat(50));
     }
 }

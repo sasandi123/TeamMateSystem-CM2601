@@ -10,7 +10,6 @@ import java.util.concurrent.*;
 /**
  * Unified engine for team formation with automatic mode selection
  * Handles both sequential and parallel processing intelligently
- * CRITICAL: Calculates GLOBAL target skill for consistent team balancing
  */
 public class TeamFormationEngine {
     private TeamBuilder teamBuilder;
@@ -38,11 +37,9 @@ public class TeamFormationEngine {
 
         if (useParallel) {
             SystemLogger.info("Using PARALLEL processing mode");
-            System.out.println("Using parallel processing...");
             return buildTeamsParallel(participants, teamSize);
         } else {
             SystemLogger.info("Using SEQUENTIAL processing mode");
-            System.out.println("Using sequential processing...");
             return buildTeamsSequential(participants, teamSize);
         }
     }
@@ -86,7 +83,6 @@ public class TeamFormationEngine {
         double globalTargetSkill = (double) totalSkill / (expectedTeams * teamSize);
 
         // Show global target skill to user
-        System.out.println("Target average skill per team: " + String.format("%.2f", globalTargetSkill));
         SystemLogger.info("Global target skill: " + String.format("%.2f", globalTargetSkill));
 
         // CRITICAL: Set target skill in TeamBuilder so it displays when viewing teams
@@ -95,7 +91,6 @@ public class TeamFormationEngine {
         int actualThreads = Math.min(OPTIMAL_THREADS,
                 Math.max(2, participants.size() / (teamSize * 3)));
 
-        System.out.println("Processing with " + actualThreads + " concurrent threads...");
 
         ExecutorService executor = Executors.newFixedThreadPool(actualThreads);
         List<Future<List<Team>>> futures = new ArrayList<>();
