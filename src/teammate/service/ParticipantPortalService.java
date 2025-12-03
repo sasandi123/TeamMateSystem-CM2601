@@ -7,65 +7,93 @@ import teammate.concurrent.SurveyDataProcessor;
 import teammate.util.ValidationUtil;
 import teammate.util.FileManager;
 import teammate.util.SystemLogger;
-import java.util.Scanner;
 
 /**
- * Service for participant portal operations
- * Clean version with proper validation and minimal noise
+ * Participant Portal Service - extends PortalService
+ * Demonstrates: Inheritance and Polymorphism
+ *
+ * This class inherits common portal functionality from PortalService
+ * and implements participant-specific behavior through method overriding.
  */
-public class ParticipantPortalService {
-    private ParticipantManager participantManager;
-    private TeamBuilder teamBuilder;
+public class ParticipantPortalService extends PortalService {
 
+    /**
+     * Constructor - calls parent constructor
+     * Demonstrates: Inheritance (using super keyword)
+     */
     public ParticipantPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
-        this.participantManager = participantManager;
-        this.teamBuilder = teamBuilder;
-    }
-
-    public void showPortal(Scanner scanner) {
-        while (true) {
-            System.out.println("\n--- PARTICIPANT PORTAL ---");
-            System.out.println("1. Submit Survey");
-            System.out.println("2. Check My Team");
-            System.out.println("3. Back to Main Menu");
-            System.out.print("Enter choice: ");
-
-            try {
-                int choice = Integer.parseInt(scanner.nextLine().trim());
-
-                switch (choice) {
-                    case 1:
-                        submitSurvey(scanner);
-                        break;
-                    case 2:
-                        checkMyTeam(scanner);
-                        break;
-                    case 3:
-                        return;
-                    default:
-                        System.out.println("Invalid choice.");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input. Please enter a number.");
-            } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
-            }
-        }
+        super(participantManager, teamBuilder);
     }
 
     /**
-     * Submit survey with proper validation
+     * OVERRIDDEN ABSTRACT METHODS FROM PortalService
+     * Demonstrates: Polymorphism (runtime method binding)
      */
-    private void submitSurvey(Scanner scanner) {
+
+    @Override
+    protected void displayWelcomeMessage() {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("PARTICIPANT PORTAL");
+        System.out.println("=".repeat(50));
+    }
+
+    @Override
+    protected void displayMenu() {
+        System.out.println("1. Submit Survey");
+        System.out.println("2. Check My Team");
+        System.out.println("3. Back to Main Menu");
+    }
+
+    @Override
+    protected void handleMenuChoice(int choice) {
+        try {
+            switch (choice) {
+                case 1:
+                    submitSurvey();
+                    break;
+                case 2:
+                    checkMyTeam();
+                    break;
+                case -1:
+                    // Invalid input already handled by parent class
+                    break;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected int getExitOption() {
+        return 3;
+    }
+
+    @Override
+    protected void displayGoodbyeMessage() {
+        System.out.println("Returning to main menu...");
+    }
+
+    /**
+     * PARTICIPANT-SPECIFIC PRIVATE METHODS
+     * These methods implement the core functionality of the participant portal
+     */
+
+    /**
+     * Submit survey with proper validation
+     * This method handles the complete survey submission process
+     */
+    private void submitSurvey() {
         try {
             System.out.println("\n--- SUBMIT SURVEY ---");
 
-            // Get and validate ID
-            String id = getValidParticipantId(scanner);
+            // Get and validate ID using inherited helper method
+            String id = getValidParticipantId();
             if (id == null) return;
 
-            // Get and validate email
-            String email = getValidEmail(scanner);
+            // Get and validate email using inherited helper method
+            String email = getValidEmail();
             if (email == null) return;
 
             // Validate credentials (check duplicates)
@@ -84,11 +112,14 @@ public class ParticipantPortalService {
             System.out.println("✓ ID and Email validated successfully.\n");
 
             // Get personal details with validation
-            String name = getValidName(scanner);
-            String preferredGame = getValidGameName(scanner);
-            int skillLevel = getUserIntInput(scanner, "Enter Skill Level (1-10): ", 1, 10);
-            String preferredRole = getValidRole(scanner);
-            int personalityScore = runPersonalitySurvey(scanner);
+            String name = getValidName();
+            String preferredGame = getValidGameName();
+
+            // Use inherited getUserIntInput method from PortalService
+            int skillLevel = getUserIntInput("Enter Skill Level (1-10): ", 1, 10);
+
+            String preferredRole = getValidRole();
+            int personalityScore = runPersonalitySurvey();
 
             // Process survey using concurrent processor
             SurveyDataProcessor.SurveyResult result = SurveyDataProcessor.processIndividualSurvey(
@@ -116,10 +147,15 @@ public class ParticipantPortalService {
         }
     }
 
-    private void checkMyTeam(Scanner scanner) {
+    /**
+     * Check team assignment status
+     * Allows participants to view their team information
+     */
+    private void checkMyTeam() {
         System.out.println("\n--- CHECK TEAM STATUS ---");
-        System.out.print("Enter your Participant ID, Email, or Full Name: ");
-        String searchKey = scanner.nextLine().trim();
+
+        // Use inherited getNonEmptyInput method from PortalService
+        String searchKey = getNonEmptyInput("Enter your Participant ID, Email, or Full Name: ");
 
         Participant p = participantManager.findParticipant(searchKey);
 
@@ -150,28 +186,36 @@ public class ParticipantPortalService {
         }
     }
 
-    private int runPersonalitySurvey(Scanner scanner) throws TeamMateException.InvalidInputException {
+    /**
+     * Runs personality survey questions
+     * Uses inherited getUserIntInput method for validated input
+     */
+    private int runPersonalitySurvey() throws TeamMateException.InvalidInputException {
         System.out.println("\n--- PERSONALITY SURVEY (Rate 1-5) ---");
         int totalScore = 0;
 
-        totalScore += getUserIntInput(scanner, "Q1: I enjoy taking the lead and guiding others. ", 1, 5);
-        totalScore += getUserIntInput(scanner, "Q2: I prefer analyzing situations and strategic solutions. ", 1, 5);
-        totalScore += getUserIntInput(scanner, "Q3: I work well with others and enjoy collaborative teamwork. ", 1, 5);
-        totalScore += getUserIntInput(scanner, "Q4: I am calm under pressure and can maintain team morale. ", 1, 5);
-        totalScore += getUserIntInput(scanner, "Q5: I like making quick decisions and adapting in dynamic situations. ", 1, 5);
+        // All questions use the inherited getUserIntInput method
+        totalScore += getUserIntInput("Q1: I enjoy taking the lead and guiding others. ", 1, 5);
+        totalScore += getUserIntInput("Q2: I prefer analyzing situations and strategic solutions. ", 1, 5);
+        totalScore += getUserIntInput("Q3: I work well with others and enjoy collaborative teamwork. ", 1, 5);
+        totalScore += getUserIntInput("Q4: I am calm under pressure and can maintain team morale. ", 1, 5);
+        totalScore += getUserIntInput("Q5: I like making quick decisions and adapting in dynamic situations. ", 1, 5);
 
         return totalScore * 4;
     }
 
-    private String getValidParticipantId(Scanner scanner) {
-        while (true) {
-            System.out.print("Enter Your Participant ID (must start with 'P'): ");
-            String id = scanner.nextLine().trim();
+    /**
+     * VALIDATION HELPER METHODS
+     * These methods provide specific validation for participant data
+     */
 
-            if (id.isEmpty()) {
-                System.out.println("✗ ID cannot be empty. Please try again.");
-                continue;
-            }
+    /**
+     * Get valid participant ID with format validation
+     */
+    private String getValidParticipantId() {
+        while (true) {
+            // Uses inherited getNonEmptyInput method
+            String id = getNonEmptyInput("Enter Your Participant ID (must start with 'P'): ");
 
             if (!ValidationUtil.isValidParticipantId(id)) {
                 System.out.println("✗ Invalid ID format. ID must start with 'P' (e.g., P0001, P1234)");
@@ -182,15 +226,13 @@ public class ParticipantPortalService {
         }
     }
 
-    private String getValidEmail(Scanner scanner) {
+    /**
+     * Get valid email address
+     */
+    private String getValidEmail() {
         while (true) {
-            System.out.print("Enter Your Email: ");
-            String email = scanner.nextLine().trim();
-
-            if (email.isEmpty()) {
-                System.out.println("✗ Email cannot be empty. Please try again.");
-                continue;
-            }
+            // Uses inherited getNonEmptyInput method
+            String email = getNonEmptyInput("Enter Your Email: ");
 
             if (!ValidationUtil.isValidEmail(email)) {
                 System.out.println("✗ Invalid email format. Please try again.");
@@ -204,15 +246,10 @@ public class ParticipantPortalService {
     /**
      * Get valid name - must contain only letters and spaces
      */
-    private String getValidName(Scanner scanner) {
+    private String getValidName() {
         while (true) {
-            System.out.print("Enter Full Name: ");
-            String name = scanner.nextLine().trim();
-
-            if (name.isEmpty()) {
-                System.out.println("✗ Name cannot be empty. Please try again.");
-                continue;
-            }
+            // Uses inherited getNonEmptyInput method
+            String name = getNonEmptyInput("Enter Full Name: ");
 
             if (!ValidationUtil.isValidName(name)) {
                 System.out.println("✗ Invalid name format. Name must contain only letters and spaces.");
@@ -227,15 +264,10 @@ public class ParticipantPortalService {
     /**
      * Get valid game name - must be appropriate format
      */
-    private String getValidGameName(Scanner scanner) {
+    private String getValidGameName() {
         while (true) {
-            System.out.print("Enter Preferred Game: ");
-            String game = scanner.nextLine().trim();
-
-            if (game.isEmpty()) {
-                System.out.println("✗ Game name cannot be empty. Please try again.");
-                continue;
-            }
+            // Uses inherited getNonEmptyInput method
+            String game = getNonEmptyInput("Enter Preferred Game: ");
 
             if (!ValidationUtil.isValidGameName(game)) {
                 System.out.println("✗ Invalid game name format.");
@@ -247,17 +279,15 @@ public class ParticipantPortalService {
         }
     }
 
-    private String getValidRole(Scanner scanner) {
+    /**
+     * Get valid role from predefined list
+     */
+    private String getValidRole() {
         System.out.println("Valid Roles: Strategist, Attacker, Defender, Supporter, Coordinator");
 
         while (true) {
-            System.out.print("Enter Preferred Role: ");
-            String role = scanner.nextLine().trim();
-
-            if (role.isEmpty()) {
-                System.out.println("✗ Role cannot be empty. Please try again.");
-                continue;
-            }
+            // Uses inherited getNonEmptyInput method
+            String role = getNonEmptyInput("Enter Preferred Role: ");
 
             if (!ValidationUtil.isValidRole(role)) {
                 System.out.println("✗ Invalid role. Please choose from: Strategist, Attacker, Defender, Supporter, Coordinator");
@@ -265,30 +295,6 @@ public class ParticipantPortalService {
             }
 
             return role;
-        }
-    }
-
-    private int getUserIntInput(Scanner scanner, String prompt, int min, int max)
-            throws TeamMateException.InvalidInputException {
-        while (true) {
-            System.out.print(prompt);
-            String input = scanner.nextLine().trim();
-
-            if (input.isEmpty()) {
-                System.out.println("Input cannot be empty. Please enter a number between " + min + " and " + max + ".");
-                continue;
-            }
-
-            try {
-                int value = Integer.parseInt(input);
-                if (value >= min && value <= max) {
-                    return value;
-                } else {
-                    System.out.println("Please enter a number between " + min + " and " + max + ".");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input. Please enter a number.");
-            }
         }
     }
 }

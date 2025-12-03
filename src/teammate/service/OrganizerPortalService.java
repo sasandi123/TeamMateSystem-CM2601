@@ -2,7 +2,6 @@ package teammate.service;
 
 import teammate.entity.Participant;
 import teammate.entity.Team;
-import teammate.exception.TeamMateException;
 import teammate.concurrent.TeamFormationEngine;
 import teammate.util.FileManager;
 import teammate.util.SystemLogger;
@@ -10,74 +9,101 @@ import java.io.File;
 import java.util.*;
 
 /**
- * Service for organizer portal operations
- * Clean version with reduced verbose output
+ * Organizer Portal Service - extends PortalService
+ * Demonstrates: Inheritance and Polymorphism
+ *
+ * This class inherits common portal functionality from PortalService
+ * and implements organizer-specific behavior through method overriding.
  */
-public class OrganizerPortalService {
-    private ParticipantManager participantManager;
-    private TeamBuilder teamBuilder;
+public class OrganizerPortalService extends PortalService {
     private List<Participant> currentAssignmentPool;
 
+    /**
+     * Constructor - calls parent constructor and initializes organizer-specific data
+     * Demonstrates: Inheritance (using super keyword) and Encapsulation
+     */
     public OrganizerPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
-        this.participantManager = participantManager;
-        this.teamBuilder = teamBuilder;
+        super(participantManager, teamBuilder);
         this.currentAssignmentPool = new ArrayList<>();
     }
 
-    public TeamBuilder getTeamBuilder() {
-        return teamBuilder;
+    /**
+     * OVERRIDDEN ABSTRACT METHODS FROM PortalService
+     * Demonstrates: Polymorphism (runtime method binding)
+     */
+
+    @Override
+    protected void displayWelcomeMessage() {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("ORGANIZER PORTAL");
+        System.out.println("=".repeat(50));
     }
 
-    public void showPortal(Scanner scanner) {
-        while (true) {
-            System.out.println("\n" + "=".repeat(50));
-            System.out.println("ORGANIZER PORTAL");
-            System.out.println("=".repeat(50));
-            System.out.println("1. Upload Participant File");
-            System.out.println("2. Generate Teams");
-            System.out.println("3. View Generated Teams");
-            System.out.println("4. Search Team by ID");
-            System.out.println("5. Export & Finalize Teams");
-            System.out.println("6. Back to Main Menu");
-            System.out.print("Enter choice: ");
+    @Override
+    protected void displayMenu() {
+        System.out.println("1. Upload Participant File");
+        System.out.println("2. Generate Teams");
+        System.out.println("3. View Generated Teams");
+        System.out.println("4. Search Team by ID");
+        System.out.println("5. Export & Finalize Teams");
+        System.out.println("6. Back to Main Menu");
+    }
 
-            try {
-                int choice = Integer.parseInt(scanner.nextLine().trim());
-
-                switch (choice) {
-                    case 1:
-                        uploadCSV(scanner);
-                        break;
-                    case 2:
-                        generateTeams(scanner);
-                        break;
-                    case 3:
-                        viewAllTeams();
-                        break;
-                    case 4:
-                        searchTeam(scanner);
-                        break;
-                    case 5:
-                        exportTeams(scanner);
-                        break;
-                    case 6:
-                        return;
-                    default:
-                        System.out.println("Invalid choice. Please try again.");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input. Please enter a number.");
-            } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
+    @Override
+    protected void handleMenuChoice(int choice) {
+        try {
+            switch (choice) {
+                case 1:
+                    uploadCSV();
+                    break;
+                case 2:
+                    generateTeams();
+                    break;
+                case 3:
+                    viewAllTeams();
+                    break;
+                case 4:
+                    searchTeam();
+                    break;
+                case 5:
+                    exportTeams();
+                    break;
+                case -1:
+                    // Invalid input already handled by parent class
+                    break;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
             }
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
         }
     }
 
-    private void uploadCSV(Scanner scanner) {
+    @Override
+    protected int getExitOption() {
+        return 6;
+    }
+
+    @Override
+    protected void displayGoodbyeMessage() {
+        System.out.println("Returning to main menu...");
+    }
+
+    /**
+     * ORGANIZER-SPECIFIC PRIVATE METHODS
+     * These methods implement the core functionality of the organizer portal
+     */
+
+    /**
+     * Upload CSV file with participant data
+     * Processes external CSV files and validates participant information
+     */
+    private void uploadCSV() {
         try {
             System.out.println("\n--- UPLOAD PARTICIPANT FILE ---");
-            System.out.print("Enter the CSV filename: ");
-            String filename = scanner.nextLine().trim();
+
+            // Use inherited getNonEmptyInput method from PortalService
+            String filename = getNonEmptyInput("Enter the CSV filename: ");
 
             if (!new File(filename).exists()) {
                 System.out.println("✗ File not found.");
@@ -96,14 +122,15 @@ public class OrganizerPortalService {
 
             currentAssignmentPool = newlyAdded;
 
-            System.out.println("\n" + "=".repeat(50));
+            // Use inherited displaySeparator method from PortalService
+            displaySeparator();
             System.out.println("UPLOAD SUMMARY");
-            System.out.println("=".repeat(50));
+            displaySeparator();
             System.out.println("New participants: " + newlyAdded.size());
             System.out.println("Duplicates skipped: " + result.get("duplicateAvailable"));
             System.out.println("Already assigned: " + result.get("duplicateAssigned"));
             System.out.println("Invalid records: " + result.get("invalidRecords"));
-            System.out.println("=".repeat(50));
+            displaySeparator();
 
             if (!newlyAdded.isEmpty()) {
                 System.out.println("\n✓ " + newlyAdded.size() + " participants ready for team generation.");
@@ -114,7 +141,11 @@ public class OrganizerPortalService {
         }
     }
 
-    private void generateTeams(Scanner scanner) throws Exception {
+    /**
+     * Generate teams from available participants
+     * Uses TeamFormationEngine with concurrent processing
+     */
+    private void generateTeams() throws Exception {
         teamBuilder.resetCurrentGenerationStatus();
 
         List<Participant> participantsToUse;
@@ -148,17 +179,18 @@ public class OrganizerPortalService {
         currentAssignmentPool = new ArrayList<>(participantsToUse);
 
         if (participantsToUse.size() < 3) {
-            System.out.println("\n Not enough participants (minimum 3 required).");
+            System.out.println("\n✗ Not enough participants (minimum 3 required).");
             return;
         }
 
-        System.out.print("\nEnter team size (minimum 3): ");
-        int teamSize = getUserIntInput(scanner, "", 3, participantsToUse.size());
+        // Use inherited getUserIntInput method from PortalService
+        int teamSize = getUserIntInput("Enter team size (minimum 3): ", 3, participantsToUse.size());
 
         System.out.println("\nStarting team formation...");
 
         long startTime = System.currentTimeMillis();
 
+        // Use TeamFormationEngine for concurrent team formation
         TeamFormationEngine engine = new TeamFormationEngine(teamBuilder);
         int teamsFormed = engine.buildTeams(participantsToUse, teamSize);
 
@@ -167,23 +199,28 @@ public class OrganizerPortalService {
         int assignedCount = teamsFormed * teamSize;
         int unassignedCount = participantsToUse.size() - assignedCount;
 
-        System.out.println("\n" + "=".repeat(50));
+        // Use inherited displaySeparator method from PortalService
+        displaySeparator();
         System.out.println("✓ TEAM FORMATION COMPLETE");
-        System.out.println("=".repeat(50));
+        displaySeparator();
         System.out.println("Teams formed: " + teamsFormed);
         System.out.println("Participants assigned: " + assignedCount);
         System.out.println("Participants unassigned: " + unassignedCount);
         System.out.println("Time taken: " + (endTime - startTime) + "ms");
-        System.out.println("=".repeat(50));
+        displaySeparator();
 
         if (teamsFormed > 0) {
-            System.out.println("\n Teams generated but NOT finalized yet.");
+            System.out.println("\n✓ Teams generated but NOT finalized yet.");
             System.out.println("Proceed to [5. Export & Finalize Teams] to save permanently.");
         } else {
             System.out.println("\n⚠ No teams could be formed. Try adjusting team size.");
         }
     }
 
+    /**
+     * View all generated teams
+     * Displays comprehensive information about all formed teams
+     */
     private void viewAllTeams() {
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams have been generated yet.");
@@ -193,15 +230,24 @@ public class OrganizerPortalService {
         teamBuilder.displayAllTeams();
     }
 
-    private void searchTeam(Scanner scanner) {
+    /**
+     * Search for a specific team by ID
+     * Retrieves and displays detailed team information
+     */
+    private void searchTeam() {
         System.out.println("\n--- SEARCH TEAM ---");
-        System.out.print("Enter Team ID (e.g., TEAM0001): ");
-        String teamId = scanner.nextLine().trim();
+
+        // Use inherited getNonEmptyInput method from PortalService
+        String teamId = getNonEmptyInput("Enter Team ID (e.g., TEAM0001): ");
 
         FileManager.searchTeamById(teamId, participantManager);
     }
 
-    private void exportTeams(Scanner scanner) throws Exception {
+    /**
+     * Export and finalize teams
+     * Saves teams to files and marks participants as assigned
+     */
+    private void exportTeams() throws Exception {
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams to export. Please generate teams first.");
             return;
@@ -214,8 +260,8 @@ public class OrganizerPortalService {
         int assignedCount = assignedInRun.size();
         int unassignedCount = unassignedInRun.size();
 
-        System.out.print("\nEnter filename for export (e.g., Teams_Nov2024.csv): ");
-        String snapshotFilename = scanner.nextLine().trim();
+        // Use inherited getNonEmptyInput method from PortalService
+        String snapshotFilename = getNonEmptyInput("Enter filename for export (e.g., Teams_Nov2024.csv): ");
 
         System.out.println("\nExporting teams...");
 
@@ -231,54 +277,41 @@ public class OrganizerPortalService {
         System.out.println("✓ " + assignedCount + " participants assigned to teams.");
 
         if (unassignedCount > 0) {
-            System.out.println("\n" + unassignedCount + " participants remain unassigned.");
+            System.out.println("\n⚠ " + unassignedCount + " participants remain unassigned.");
 
             System.out.println("\nWhat would you like to do with unassigned participants?");
             System.out.println("1. Keep for future team formation");
             System.out.println("2. Remove from system");
-            System.out.print("Enter choice: ");
 
-            try {
-                int choice = Integer.parseInt(scanner.nextLine().trim());
+            // Use inherited getMenuChoice method from PortalService
+            int choice = getMenuChoice();
 
-                if (choice == 2) {
-                    participantManager.removeParticipants(unassignedInRun);
-                    System.out.println("✓ Removed " + unassignedCount + " unassigned participants.");
-                } else {
-                    System.out.println("✓ Unassigned participants kept for future use.");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("✓ Keeping unassigned participants by default.");
+            if (choice == 2) {
+                participantManager.removeParticipants(unassignedInRun);
+                System.out.println("✓ Removed " + unassignedCount + " unassigned participants.");
+            } else {
+                System.out.println("✓ Unassigned participants kept for future use.");
             }
         }
 
         participantManager.saveAllParticipants();
 
-        System.out.println("\n" + "=".repeat(50));
+        // Use inherited displaySeparator method from PortalService
+        displaySeparator();
         System.out.println("✓ EXPORT COMPLETE");
-        System.out.println("=".repeat(50));
+        displaySeparator();
         System.out.println("Snapshot saved: " + snapshotFilename);
-        System.out.println("=".repeat(50));
+        displaySeparator();
 
         teamBuilder.clearTeams();
         currentAssignmentPool.clear();
     }
 
-    private int getUserIntInput(Scanner scanner, String prompt, int min, int max)
-            throws TeamMateException.InvalidInputException {
-        while (true) {
-            System.out.print(prompt);
-            String input = scanner.nextLine().trim();
-            try {
-                int value = Integer.parseInt(input);
-                if (value >= min && value <= max) {
-                    return value;
-                } else {
-                    System.out.println("Please enter a number between " + min + " and " + max + ".");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input. Please enter a number.");
-            }
-        }
+    /**
+     * Getter for TeamBuilder (if needed externally)
+     * Provides access to the team builder instance
+     */
+    public TeamBuilder getTeamBuilder() {
+        return teamBuilder;
     }
 }
