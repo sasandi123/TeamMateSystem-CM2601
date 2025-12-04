@@ -4,9 +4,7 @@ import teammate.util.SystemLogger;
 import java.io.*;
 import java.util.*;
 
-/**
- * Represents a team with unique sequential ID, members, and statistics
- */
+// Represents a team with unique sequential ID and members
 public class Team {
     private static final String COUNTER_FILE = "team_counter.dat";
     private static int teamCounter = -1;
@@ -35,10 +33,15 @@ public class Team {
         return teamId;
     }
 
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
+
     public List<Participant> getMembers() {
         return new ArrayList<>(members);
     }
 
+    // Adds a participant to the team if space is available
     public boolean addMember(Participant participant) {
         if (participant != null && members.size() < maxSize) {
             members.add(participant);
@@ -56,9 +59,7 @@ public class Team {
         return targetSkillLevel;
     }
 
-    /**
-     * Check if participant is a member of this team
-     */
+    // Checks if a participant is a member of this team
     public boolean hasMember(Participant participant) {
         for (Participant member : members) {
             if (member.getId().equals(participant.getId())) {
@@ -68,10 +69,7 @@ public class Team {
         return false;
     }
 
-    /**
-     * Assigns unique sequential team ID
-     * Thread-safe for concurrent team formation
-     */
+    // Assigns unique sequential team ID for permanent storage
     public synchronized void finalizeTeamId() {
         if (teamCounter == -1) {
             loadTeamCounter();
@@ -86,14 +84,13 @@ public class Team {
         teamId = "TEAM" + String.format("%04d", teamCounter);
     }
 
-    /**
-     * Resets counter to its value before current team generation
-     */
+    // Resets counter to previous value if team generation is cancelled
     public static synchronized void resetTeamCounter() {
         teamCounter = previousValue;
         counterModified = false;
     }
 
+    // Loads the team counter from file to maintain sequential IDs
     private static synchronized void loadTeamCounter() {
         File file = new File(COUNTER_FILE);
 
@@ -118,9 +115,7 @@ public class Team {
         }
     }
 
-    /**
-     * Saves the current team counter to file
-     */
+    // Saves the current team counter to file for persistence
     public static synchronized void saveTeamCounterToFile() {
         if (!counterModified) return;
 
@@ -132,6 +127,7 @@ public class Team {
         }
     }
 
+    // Calculates team statistics including average skill and distributions
     private void updateStatistics() {
         if (members.isEmpty()) return;
 
@@ -174,9 +170,7 @@ public class Team {
         return new HashMap<>(gameDistribution);
     }
 
-    /**
-     * Displays comprehensive team information
-     */
+    // Displays comprehensive team information for organizers
     public void displayTeamInfo() {
         System.out.println("\n" + "=".repeat(50));
         System.out.println("Team ID: " + teamId);
@@ -206,30 +200,7 @@ public class Team {
                 System.out.println("  " + game + ": " + count));
     }
 
-    /**
-     * Converts team to CSV format for export (for snapshot file)
-     */
-    public String toCSVString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(teamId).append(",");
-        sb.append(members.size()).append(",");
-        sb.append(String.format("%.2f", averageSkillLevel)).append(",");
-
-        for (int i = 0; i < members.size(); i++) {
-            sb.append(members.get(i).getId());
-            if (i < members.size() - 1) sb.append(";");
-        }
-        return sb.toString();
-    }
-
-
-    @Override
-    public String toString() {
-        return teamId + " (" + members.size() + " members)";
-    }
-    /**
-     * Simplified team display for participants - shows only essential info
-     */
+    // Displays simplified team information for participants
     public void displayTeamInfoForParticipant() {
         System.out.println("\n" + "=".repeat(50));
         System.out.println("Team ID: " + teamId);
@@ -246,5 +217,24 @@ public class Team {
                     " | Role: " + p.getPreferredRole());
         }
         System.out.println("=".repeat(50));
+    }
+
+    // Converts team data to CSV format for file export
+    public String toCSVString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(teamId).append(",");
+        sb.append(members.size()).append(",");
+        sb.append(String.format("%.2f", averageSkillLevel)).append(",");
+
+        for (int i = 0; i < members.size(); i++) {
+            sb.append(members.get(i).getId());
+            if (i < members.size() - 1) sb.append(";");
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return teamId + " (" + members.size() + " members)";
     }
 }

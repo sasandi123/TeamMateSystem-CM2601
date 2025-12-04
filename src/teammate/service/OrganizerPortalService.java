@@ -9,29 +9,14 @@ import java.util.*;
 
 import static teammate.Main.centerText;
 
-/**
- * Organizer Portal Service - extends PortalService
- * Demonstrates: Inheritance and Polymorphism
- *
- * This class inherits common portal functionality from PortalService
- * and implements organizer-specific behavior through method overriding.
- */
+// Handles organizer-specific operations including team generation and export
 public class OrganizerPortalService extends PortalService {
     private List<Participant> currentAssignmentPool;
 
-    /**
-     * Constructor - calls parent constructor and initializes organizer-specific data
-     * Demonstrates: Inheritance (using super keyword) and Encapsulation
-     */
     public OrganizerPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
         super(participantManager, teamBuilder);
         this.currentAssignmentPool = new ArrayList<>();
     }
-
-    /**
-     * OVERRIDDEN ABSTRACT METHODS FROM PortalService
-     * Demonstrates: Polymorphism (runtime method binding)
-     */
 
     @Override
     protected void displayWelcomeMessage() {
@@ -72,7 +57,6 @@ public class OrganizerPortalService extends PortalService {
                     exportTeams();
                     break;
                 case -1:
-                    // Invalid input already handled by parent class
                     break;
                 default:
                     System.out.println("Invalid choice. Please try again.");
@@ -92,157 +76,106 @@ public class OrganizerPortalService extends PortalService {
         System.out.println("Returning to main menu...");
     }
 
-    /**
-     * ORGANIZER-SPECIFIC PRIVATE METHODS
-     * These methods implement the core functionality of the organizer portal
-     */
+    // Uploads CSV file with participant data for tournament
+    private void uploadCSV() throws Exception {
+        System.out.println("\n--- UPLOAD PARTICIPANT FILE ---");
 
-    /**
-     * Upload CSV file with participant data
-     * Processes external CSV files and validates participant information
-     */
-    private void uploadCSV() {
-        try {
-            System.out.println("\n--- UPLOAD PARTICIPANT FILE ---");
+        String filename = getNonEmptyInput("Enter CSV filename: ");
 
-            // Use inherited getNonEmptyInput method from PortalService
-            String filename = getNonEmptyInput("Enter the CSV filename: ");
-
-            if (!new File(filename).exists()) {
-                System.out.println("[X] File not found.");
-                return;
-            }
-
-            Map<String, Object> result = participantManager.processExternalCSV(filename, scanner);
-
-            if ((Boolean) result.get("cancelled")) {
-                System.out.println("\n[X] Upload cancelled.");
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            List<Participant> newlyAdded = (List<Participant>) result.get("newlyAdded");
-
-            // CRITICAL FIX: Store the uploaded participants for THIS session
-            // This ensures team generation uses ONLY these participants
-            currentAssignmentPool = new ArrayList<>(newlyAdded);
-
-        } catch (Exception e) {
-            System.out.println("Upload failed: " + e.getMessage());
+        File file = new File(filename);
+        if (!file.exists()) {
+            System.out.println("[X] File not found: " + filename);
+            return;
         }
+
+        // Process CSV and handle results
+        Map<String, Object> result = participantManager.processExternalCSV(filename, scanner);
+
+        if ((Boolean) result.get("cancelled")) {
+            System.out.println("Upload cancelled.");
+            return;
+        }
+
+        // Store participants for this session's team formation
+        currentAssignmentPool = (List<Participant>) result.get("newlyAdded");
+
+        System.out.println("\nParticipants ready for team generation.");
     }
 
-    /**
-     * Generate teams from available participants
-     * Uses TeamFormationEngine with concurrent processing
-     * FIXED: Now strictly uses uploaded file participants only
-     */
+    // Generates teams using automatic mode selection (sequential/parallel)
     private void generateTeams() throws Exception {
-        teamBuilder.resetCurrentGenerationStatus();
+        System.out.println("\n--- GENERATE TEAMS ---");
 
         List<Participant> participantsToUse;
 
-        // CRITICAL FIX: If file uploaded, use ONLY those participants
-        if (!currentAssignmentPool.isEmpty()) {
-            participantsToUse = new ArrayList<>(currentAssignmentPool);
-            System.out.println("\nUsing uploaded file participants (" + participantsToUse.size() + " total).");
-            System.out.println("[System] These participants are from your current upload session.");
-        } else {
-            // No file uploaded - offer to use system's available participants
-            System.out.println("\nNo file uploaded.");
-            System.out.print("Use available participants from system? (Y/N): ");
+        // Use uploaded participants or available system participants
+        if (currentAssignmentPool.isEmpty()) {
+            System.out.print("\nNo participants uploaded. Use available participants from system? (Y/N): ");
             String choice = scanner.nextLine().trim().toUpperCase();
 
             if (choice.equals("Y")) {
-                participantManager.loadAllParticipants();
                 participantsToUse = participantManager.getAvailableParticipants();
 
                 if (participantsToUse.isEmpty()) {
-                    System.out.println("\n[X] NO AVAILABLE PARTICIPANTS");
-                    System.out.println("All participants are already assigned to teams.");
-                    System.out.println("Please upload a new participant file to continue.");
+                    System.out.println("[X] No available participants in system.");
                     return;
                 }
 
-                System.out.println("Found " + participantsToUse.size() + " available participants.");
-
-                // Store these for this session
-                currentAssignmentPool = new ArrayList<>(participantsToUse);
+                System.out.println("[OK] Found " + participantsToUse.size() + " available participants.");
             } else {
                 System.out.println("Team generation cancelled.");
                 return;
             }
+        } else {
+            participantsToUse = new ArrayList<>(currentAssignmentPool);
         }
 
-        if (participantsToUse.size() < 3) {
-            System.out.println("\n[X] Not enough participants (minimum 3 required).");
+        int teamSize = getUserIntInput("\nEnter team size (minimum 3): ", 3, 10);
+
+        if (participantsToUse.size() < teamSize) {
+            System.out.println("\n[X] Not enough participants. Need at least " + teamSize + " participants.");
             return;
         }
 
-        // Use inherited getUserIntInput method from PortalService
-        int teamSize = getUserIntInput("Enter team size (minimum 3): ", 3, participantsToUse.size());
+        // Reset any previous generation
+        teamBuilder.resetCurrentGenerationStatus();
+        Team.resetTeamCounter();
 
-        System.out.println("\nStarting team formation...");
-
-        long startTime = System.currentTimeMillis();
-
-        // Use TeamFormationEngine for concurrent team formation
+        // Use engine for automatic mode selection
         TeamFormationEngine engine = new TeamFormationEngine(teamBuilder);
         int teamsFormed = engine.buildTeams(participantsToUse, teamSize);
 
-        long endTime = System.currentTimeMillis();
-
-        int assignedCount = teamsFormed * teamSize;
-        int unassignedCount = participantsToUse.size() - assignedCount;
-
-        // Use inherited displaySeparator method from PortalService
-        displaySeparator();
-        System.out.println("[OK] TEAM FORMATION COMPLETE");
-        displaySeparator();
-        System.out.println("Teams formed: " + teamsFormed);
-        System.out.println("Participants assigned: " + assignedCount);
-        System.out.println("Participants unassigned: " + unassignedCount);
-        System.out.println("Time taken: " + (endTime - startTime) + "ms");
-        displaySeparator();
-
         if (teamsFormed > 0) {
-            System.out.println("\n[OK] Teams generated but NOT finalized yet.");
-            System.out.println("Proceed to [5. Export & Finalize Teams] to save permanently.");
+            System.out.println("\n[OK] Successfully formed " + teamsFormed + " teams!");
+            System.out.println("Use option 3 to view teams or option 5 to export them.");
         } else {
-            System.out.println("\n[!] No teams could be formed. Try adjusting team size.");
+            System.out.println("\n[X] Could not form any teams with current participants.");
         }
     }
 
-    /**
-     * View all generated teams
-     * Displays comprehensive information about all formed teams
-     */
+    // Displays all generated teams with full details
     private void viewAllTeams() {
+        System.out.println("\n--- VIEW GENERATED TEAMS ---");
+
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams have been generated yet.");
+            System.out.println("Use option 2 to generate teams first.");
             return;
         }
 
         teamBuilder.displayAllTeams();
     }
 
-    /**
-     * Search for a specific team by ID
-     * Retrieves and displays detailed team information
-     */
+    // Searches for a specific team by ID in historical records
     private void searchTeam() {
         System.out.println("\n--- SEARCH TEAM ---");
 
-        // Use inherited getNonEmptyInput method from PortalService
         String teamId = getNonEmptyInput("Enter Team ID (e.g., TEAM0001): ");
 
         FileManager.searchTeamById(teamId, participantManager);
     }
 
-    /**
-     * Export and finalize teams
-     * Saves teams to files and marks participants as assigned
-     */
+    // Exports teams to files and finalizes participant assignments
     private void exportTeams() throws Exception {
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams to export. Please generate teams first.");
@@ -256,139 +189,71 @@ public class OrganizerPortalService extends PortalService {
         int assignedCount = assignedInRun.size();
         int unassignedCount = unassignedInRun.size();
 
-        // Use inherited getNonEmptyInput method from PortalService
         String snapshotFilename = getNonEmptyInput("Enter filename for export (e.g., Teams_Nov2024.csv): ");
 
         System.out.println("\nExporting teams...");
 
-        // Export teams to files
+        // Export to both snapshot and cumulative files
         teamBuilder.exportTeamsSnapshot(snapshotFilename);
         teamBuilder.appendTeamsToCumulative();
 
-        // Save the counter to file (for sequential numbering)
+        // Save team counter for sequential ID management
         Team.saveTeamCounterToFile();
 
-        // Mark participants as assigned
+        // Update participant status
         teamBuilder.markParticipantsAssigned();
         System.out.println("[OK] " + assignedCount + " participants assigned to teams.");
 
+        // Handle unassigned participants
         if (unassignedCount > 0) {
             System.out.println("\n[!] " + unassignedCount + " participants remain unassigned.");
 
-            // Ask if user wants to view unassigned participants
             System.out.print("\nView unassigned participants? (Y/N): ");
             String viewChoice = scanner.nextLine().trim().toUpperCase();
 
             if (viewChoice.equals("Y")) {
-                displayUnassignedParticipants(unassignedInRun);
-            }
-
-            System.out.println("\nWhat would you like to do with unassigned participants?");
-            System.out.println("1. Keep for future team formation");
-            System.out.println("2. Remove from system");
-
-            // Use inherited getMenuChoice method from PortalService
-            int choice = getMenuChoice();
-
-            if (choice == 2) {
-                participantManager.removeParticipants(unassignedInRun);
-                System.out.println("[OK] Removed " + unassignedCount + " unassigned participants.");
-            } else {
-                System.out.println("[OK] Unassigned participants kept for future use.");
-            }
-        }
-
-        participantManager.saveAllParticipants();
-
-        // Use inherited displaySeparator method from PortalService
-        displaySeparator();
-        System.out.println("[OK] EXPORT COMPLETE");
-        displaySeparator();
-        System.out.println("Snapshot saved: " + snapshotFilename);
-        displaySeparator();
-
-        teamBuilder.clearTeams();
-        currentAssignmentPool.clear();
-    }
-
-    /**
-     * Getter for TeamBuilder (if needed externally)
-     * Provides access to the team builder instance
-     */
-    public TeamBuilder getTeamBuilder() {
-        return teamBuilder;
-    }
-
-    /**
-     * Display unassigned participants in a clean format
-     * Helper method to reduce noise in main flow
-     */
-    private void displayUnassignedParticipants(List<Participant> unassignedParticipants) {
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("UNASSIGNED PARTICIPANTS (" + unassignedParticipants.size() + ")");
-        System.out.println("=".repeat(60));
-
-        for (int i = 0; i < unassignedParticipants.size(); i++) {
-            Participant p = unassignedParticipants.get(i);
-            System.out.printf("%d. %s - %s | Game: %s | Skill: %d | Role: %s | Type: %s\n",
-                    (i + 1), p.getId(), p.getName(), p.getPreferredGame(),
-                    p.getSkillLevel(), p.getPreferredRole(), p.getPersonalityType());
-        }
-
-        System.out.println("=".repeat(60));
-    }
-
-    /**
-     * Display assigned participants details
-     * Shows details only when organizer wants to see them
-     */
-    void displayAssignedParticipantsDetails(List<String> duplicateAssigned,
-                                            Map<String, String> assignedDetails) {
-        System.out.println("\n╔" + "═".repeat(78) + "╗");
-        System.out.println("║" + centerText("PREVIOUSLY ASSIGNED PARTICIPANTS", 78) + "║");
-        System.out.println("╠" + "═".repeat(78) + "╣");
-
-        System.out.println("\n┌" + "─".repeat(78) + "┐");
-        System.out.println("│" + centerText("PARTICIPANT DETAILS", 78) + "│");
-        System.out.println("├" + "─".repeat(78) + "┤");
-
-        for (int i = 0; i < duplicateAssigned.size(); i++) {
-            String dup = duplicateAssigned.get(i);
-            String[] parts = dup.split(" - ");
-            String participantId = parts[0];
-            String nameAndEmail = parts.length > 1 ? parts[1] : "";
-
-            // Extract name and email
-            String name = "";
-            String email = "";
-            if (!nameAndEmail.isEmpty()) {
-                int emailStart = nameAndEmail.lastIndexOf('(');
-                if (emailStart != -1) {
-                    name = nameAndEmail.substring(0, emailStart).trim();
-                    email = nameAndEmail.substring(emailStart + 1, nameAndEmail.length() - 1).trim();
+                System.out.println("\nUnassigned Participants:");
+                for (int i = 0; i < unassignedInRun.size(); i++) {
+                    Participant p = unassignedInRun.get(i);
+                    System.out.println((i + 1) + ". " + p.getId() + " - " + p.getName() +
+                            " | Game: " + p.getPreferredGame() + " | Skill: " + p.getSkillLevel());
                 }
             }
 
-            // Get participant details from system
-            Participant p = participantManager.findParticipant(participantId);
+            System.out.print("\nKeep unassigned for future tournaments or remove? (1=Keep / 2=Remove): ");
+            String choice = scanner.nextLine().trim();
 
-            System.out.println("│");
-            System.out.println("│ " + (i + 1) + ". Participant ID: " + participantId);
-            System.out.println("│    Name         : " + (name.isEmpty() && p != null ? p.getName() : name));
-
-            // Show assignment history
-            String info = assignedDetails.get(participantId);
-            if (info != null) {
-                System.out.println("│    Assignment   : " + info);
-            }
-
-            if (i < duplicateAssigned.size() - 1) {
-                System.out.println("│" + " ".repeat(78) + "│");
-                System.out.println("│" + "·".repeat(78) + "│");
+            if (choice.equals("2")) {
+                participantManager.removeParticipants(unassignedInRun);
+                System.out.println("[OK] Removed " + unassignedCount + " unassigned participants.");
+            } else {
+                System.out.println("[OK] Keeping " + unassignedCount + " participants as available.");
             }
         }
 
-        System.out.println("│");
-        System.out.println("└" + "─".repeat(78) + "┘");
+        // Save changes and clear temporary data
+        participantManager.saveAllParticipants();
+        teamBuilder.clearTeams();
+        currentAssignmentPool.clear();
+
+        System.out.println("\n[OK] Export complete! Teams saved to:");
+        System.out.println("  - Snapshot: " + snapshotFilename);
+        System.out.println("  - Cumulative: formed_teams_cumulative.csv");
+    }
+
+    // Displays details of previously assigned participants
+    public void displayAssignedParticipantsDetails(List<String> participantIds, Map<String, String> assignedDetails) {
+        System.out.println("\nPreviously Assigned Participants:");
+        System.out.println("=".repeat(70));
+
+        for (int i = 0; i < participantIds.size(); i++) {
+            String fullInfo = participantIds.get(i);
+            String id = fullInfo.split(" - ")[0];
+
+            System.out.println((i + 1) + ". " + fullInfo);
+            System.out.println("   " + assignedDetails.get(id));
+        }
+
+        System.out.println("=".repeat(70));
     }
 }

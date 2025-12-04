@@ -4,14 +4,10 @@ import teammate.entity.Participant;
 import teammate.entity.Team;
 import java.util.*;
 
-/**
- * Shared utility methods for team formation logic
- */
+// Provides utility methods for team formation logic and validation
 public class TeamFormationHelper {
 
-    /**
-     * Builds a single team from available candidates
-     */
+    // Builds a single balanced team from available candidates
     public static Team buildSingleTeam(List<Participant> candidates, int teamSize,
                                        double targetSkill, double skillTolerance) {
         if (candidates.size() < teamSize) return null;
@@ -22,7 +18,7 @@ public class TeamFormationHelper {
 
         List<Participant> selected = new ArrayList<>();
 
-        // Must have exactly 1 Leader
+        // Select exactly 1 Leader
         Participant leader = null;
         for (Participant p : pool) {
             if (p.getPersonalityType().equals("Leader")) {
@@ -35,7 +31,7 @@ public class TeamFormationHelper {
         selected.add(leader);
         pool.remove(leader);
 
-        // Must have 1-2 Thinkers
+        // Select 1-2 Thinkers
         List<Participant> thinkers = new ArrayList<>();
         int thinkerCount = 0;
         for (Participant p : pool) {
@@ -50,7 +46,7 @@ public class TeamFormationHelper {
         selected.addAll(thinkers);
         pool.removeAll(thinkers);
 
-        // Fill remaining slots
+        // Fill remaining slots while checking constraints
         while (selected.size() < teamSize && !pool.isEmpty()) {
             Participant candidate = pool.remove(0);
             selected.add(candidate);
@@ -61,7 +57,7 @@ public class TeamFormationHelper {
             }
         }
 
-        // Validate team meets all requirements
+        // Validate team meets all requirements including skill balance
         if (selected.size() == teamSize) {
             for (Participant p : selected) {
                 team.addMember(p);
@@ -79,9 +75,7 @@ public class TeamFormationHelper {
         return null;
     }
 
-    /**
-     * Checks basic constraints: max 2 per game, min 3 unique roles
-     */
+    // Checks if team meets basic constraints (game and role diversity)
     public static boolean meetsBasicConstraints(List<Participant> members) {
         Map<String, Integer> gameCounts = new HashMap<>();
         for (Participant p : members) {
@@ -89,12 +83,12 @@ public class TeamFormationHelper {
             gameCounts.put(game, gameCounts.getOrDefault(game, 0) + 1);
         }
 
-        // Max 2 players per game
+        // Maximum 2 players per game
         for (Integer count : gameCounts.values()) {
             if (count > 2) return false;
         }
 
-        // Min 3 unique roles
+        // Minimum 3 unique roles
         Set<String> uniqueRoles = new HashSet<>();
         for (Participant p : members) {
             uniqueRoles.add(p.getPreferredRole());
@@ -103,9 +97,7 @@ public class TeamFormationHelper {
         return uniqueRoles.size() >= 3;
     }
 
-    /**
-     * Validates team meets all formation rules
-     */
+    // Validates team meets all formation rules
     public static boolean isTeamValid(Team team) {
         List<Participant> members = team.getMembers();
 
@@ -127,7 +119,7 @@ public class TeamFormationHelper {
         }
         if (thinkers < 1 || thinkers > 2) return false;
 
-        // Max 2 per game
+        // Maximum 2 players per game
         Map<String, Integer> gameCounts = new HashMap<>();
         for (Participant p : members) {
             String game = p.getPreferredGame();
@@ -137,7 +129,7 @@ public class TeamFormationHelper {
             if (count > 2) return false;
         }
 
-        // Min 3 unique roles
+        // Minimum 3 unique roles
         Set<String> uniqueRoles = new HashSet<>();
         for (Participant p : members) {
             uniqueRoles.add(p.getPreferredRole());

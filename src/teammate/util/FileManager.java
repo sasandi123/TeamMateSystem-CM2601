@@ -8,10 +8,12 @@ import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+// Handles all file operations for participants and teams
 public class FileManager {
     private static final String ALL_REGISTERED_PARTICIPANTS = "all_registered_participants.csv";
     private static final String FORMED_TEAMS_CUMULATIVE = "formed_teams_cumulative.csv";
 
+    // Saves all participants to master CSV file
     public static void saveAllParticipants(List<Participant> participants) throws TeamMateException.FileWriteException {
         try (FileWriter fw = new FileWriter(ALL_REGISTERED_PARTICIPANTS, false);
              BufferedWriter bw = new BufferedWriter(fw);
@@ -31,6 +33,7 @@ public class FileManager {
         }
     }
 
+    // Loads all participants from master CSV file
     public static List<Participant> loadAllParticipants() throws TeamMateException.FileReadException {
         List<Participant> participants = new ArrayList<>();
 
@@ -71,9 +74,7 @@ public class FileManager {
         return participants;
     }
 
-    /**
-     * Get latest assignment information for a participant
-     */
+    // Retrieves latest team assignment information for a participant
     public static String getLatestAssignment(String participantId) {
         String latestTeam = null;
         String latestTimestamp = null;
@@ -113,6 +114,7 @@ public class FileManager {
         return "No previous assignment found";
     }
 
+    // Exports current teams to a snapshot file for this tournament
     public static void exportTeamsSnapshot(List<Team> teams, String filename) throws TeamMateException.FileWriteException {
         try (FileWriter fw = new FileWriter(filename, false);
              BufferedWriter bw = new BufferedWriter(fw);
@@ -135,6 +137,7 @@ public class FileManager {
         }
     }
 
+    // Appends teams to cumulative records file with timestamp
     public static void appendTeamsToCumulative(List<Team> teams) throws TeamMateException.FileWriteException {
         boolean fileExists = new File(FORMED_TEAMS_CUMULATIVE).exists();
 
@@ -162,10 +165,7 @@ public class FileManager {
         }
     }
 
-    /**
-     * Search for a team and display FULL details - FOR ORGANIZERS
-     * Shows all distributions
-     */
+    // Searches for and displays full team details for organizers
     public static void searchTeamById(String teamId, ParticipantManager participantManager) {
         SystemLogger.info("Team search requested: " + teamId);
 
@@ -200,6 +200,7 @@ public class FileManager {
                     int thinkerCount = 0;
                     int balancedCount = 0;
 
+                    // Display each member and calculate distributions
                     for (int i = 0; i < ids.length; i++) {
                         String id = ids[i].trim();
                         Participant p = participantManager.findParticipant(id);
@@ -223,6 +224,7 @@ public class FileManager {
                         }
                     }
 
+                    // Display all distributions
                     System.out.println("\nRole Distribution:");
                     roleCount.forEach((role, count) ->
                             System.out.println("  " + role + ": " + count));
@@ -258,10 +260,7 @@ public class FileManager {
         }
     }
 
-    /**
-     * UPDATED: Find most recent team for PARTICIPANTS
-     * Simple view without distributions
-     */
+    // Finds and displays most recent team assignment for participants
     public static void findMostRecentParticipantTeam(String participantId, ParticipantManager participantManager) {
         SystemLogger.info("Searching most recent team for participant: " + participantId);
 
@@ -290,36 +289,26 @@ public class FileManager {
             if (mostRecentTeamId != null) {
                 String[] parts = mostRecentLine.split(",");
                 String timestamp = parts[0];
-                String tId = parts[1];
-                String teamSize = parts[2];
-                String avgSkill = parts[3];
+                int teamSize = Integer.parseInt(parts[2]);
                 String memberIds = parts[4];
 
-                // SIMPLE VIEW FOR PARTICIPANTS
-                System.out.println("\n" + "=".repeat(50));
-                System.out.println("Team ID: " + tId);
-                System.out.println("Formation Date: " + timestamp);
-                System.out.println("Team Size: " + teamSize);
-                System.out.println("Average Skill Level: " + avgSkill);
-                System.out.println("=".repeat(50));
+                // Create team object from file data
+                Team team = new Team(teamSize);
+                team.setTeamId(mostRecentTeamId);
 
+                // Add members to team
                 String[] ids = memberIds.split(";");
-                System.out.println("\nYour Teammates:");
-
-                for (int i = 0; i < ids.length; i++) {
-                    String id = ids[i].trim();
-                    Participant p = participantManager.findParticipant(id);
-
+                for (String id : ids) {
+                    Participant p = participantManager.findParticipant(id.trim());
                     if (p != null) {
-                        System.out.printf("%d. %s | Game: %s | Skill: %d | Role: %s\n",
-                                (i + 1), p.getName(), p.getPreferredGame(),
-                                p.getSkillLevel(), p.getPreferredRole());
-                    } else {
-                        System.out.printf("%d. %s (Details not available)\n", (i + 1), id);
+                        team.addMember(p);
                     }
                 }
 
-                System.out.println("=".repeat(50));
+                System.out.println("\nFormation Date: " + timestamp);
+
+                // Display simplified team info for participants
+                team.displayTeamInfoForParticipant();
 
                 SystemLogger.success("Most recent team found: " + mostRecentTeamId);
             } else {
@@ -335,8 +324,4 @@ public class FileManager {
             SystemLogger.logException("Error finding participant team", e);
         }
     }
-
-    /**
-     * UNUSED - Removed (was just calling searchTeamById)
-     */
 }

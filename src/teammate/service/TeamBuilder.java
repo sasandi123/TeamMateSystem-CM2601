@@ -6,9 +6,7 @@ import teammate.util.FileManager;
 import teammate.util.TeamFormationHelper;
 import java.util.*;
 
-/**
- * Builds and manages teams with skill balancing
- */
+// Manages team formation and maintains team collection
 public class TeamBuilder {
     private List<Team> teams;
     private double overallAverageSkill;
@@ -26,10 +24,7 @@ public class TeamBuilder {
         return teams.size();
     }
 
-    /**
-     * Sets the target average skill level for display
-     * Used when parallel processing calculates it externally
-     */
+    // Sets the target average skill level for all teams
     public void setOverallAverageSkill(double skill) {
         this.overallAverageSkill = skill;
     }
@@ -38,9 +33,7 @@ public class TeamBuilder {
         return overallAverageSkill;
     }
 
-    /**
-     * Adds a team and assigns it a unique ID
-     */
+    // Adds a team and assigns it a unique sequential ID
     public void addTeam(Team team) {
         if (team != null) {
             team.setTargetSkillLevel(overallAverageSkill);
@@ -49,9 +42,7 @@ public class TeamBuilder {
         }
     }
 
-    /**
-     * Displays all teams with target skill level
-     */
+    // Displays all teams with their details and target skill level
     public void displayAllTeams() {
         System.out.println("\n" + "=".repeat(60));
         System.out.println("GENERATED TEAMS (" + teams.size() + " teams)");
@@ -69,10 +60,7 @@ public class TeamBuilder {
         }
     }
 
-    /**
-     * Resets teams for new generation attempt
-     * Also resets the target skill
-     */
+    // Resets teams and reverts participant status for regeneration
     public void resetCurrentGenerationStatus() {
         if (teams.isEmpty()) return;
 
@@ -83,12 +71,10 @@ public class TeamBuilder {
         }
 
         this.teams.clear();
-        this.overallAverageSkill = 0; // Reset target skill
+        this.overallAverageSkill = 0;
     }
 
-    /**
-     * Marks all team members as assigned
-     */
+    // Updates participant status to assigned after team finalization
     public void markParticipantsAssigned() {
         if (teams.isEmpty()) return;
 
@@ -99,9 +85,7 @@ public class TeamBuilder {
         }
     }
 
-    /**
-     * Sequential team building algorithm
-     */
+    // Builds teams sequentially using greedy algorithm with balancing constraints
     public void buildTeams(List<Participant> participants, int teamSize) {
         if (participants == null || participants.isEmpty()) {
             System.out.println("No participants available for team formation");
@@ -110,7 +94,7 @@ public class TeamBuilder {
 
         List<Participant> available = new ArrayList<>(participants);
 
-        // Calculate target skill level
+        // Calculate target skill level for balancing
         int totalSkill = 0;
         for (Participant p : available) {
             totalSkill += p.getSkillLevel();
@@ -124,6 +108,7 @@ public class TeamBuilder {
         int attempts = 0;
         double skillTolerance = 0.10;
 
+        // Continue forming teams while enough participants remain
         while (available.size() >= teamSize && attempts < 50) {
             Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
                     overallAverageSkill, skillTolerance);
@@ -131,6 +116,7 @@ public class TeamBuilder {
             if (team != null && TeamFormationHelper.isTeamValid(team)) {
                 addTeam(team);
 
+                // Remove assigned members from available pool
                 for (Participant member : team.getMembers()) {
                     available.remove(member);
                 }
@@ -139,6 +125,7 @@ public class TeamBuilder {
             } else {
                 attempts++;
 
+                // Gradually increase tolerance if struggling to form teams
                 if (attempts % 10 == 0 && skillTolerance < 0.15) {
                     skillTolerance += 0.02;
                     Collections.shuffle(available);
@@ -147,6 +134,7 @@ public class TeamBuilder {
         }
     }
 
+    // Finds the team containing a specific participant
     public Team findTeamForParticipant(Participant participant) {
         for (Team team : teams) {
             if (team.hasMember(participant)) {
@@ -156,14 +144,17 @@ public class TeamBuilder {
         return null;
     }
 
+    // Exports current teams to snapshot file
     public void exportTeamsSnapshot(String filename) throws Exception {
         FileManager.exportTeamsSnapshot(teams, filename);
     }
 
+    // Appends teams to cumulative records with timestamp
     public void appendTeamsToCumulative() throws Exception {
         FileManager.appendTeamsToCumulative(teams);
     }
 
+    // Returns all participants currently assigned to teams
     public List<Participant> getAllParticipantsInTeams() {
         List<Participant> assigned = new ArrayList<>();
         for (Team team : teams) {
@@ -172,8 +163,9 @@ public class TeamBuilder {
         return assigned;
     }
 
+    // Clears all teams from memory
     public void clearTeams() {
         this.teams.clear();
-        this.overallAverageSkill = 0; // Also reset target skill
+        this.overallAverageSkill = 0;
     }
 }

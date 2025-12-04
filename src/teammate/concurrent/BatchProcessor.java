@@ -6,9 +6,7 @@ import teammate.util.TeamFormationHelper;
 import java.util.*;
 import java.util.concurrent.Callable;
 
-/**
- * Processes a batch of participants in parallel
- */
+// Processes a batch of participants in parallel for team formation
 public class BatchProcessor implements Callable<List<Team>> {
     private List<Participant> participants;
     private int teamSize;
@@ -30,6 +28,7 @@ public class BatchProcessor implements Callable<List<Team>> {
         int attempts = 0;
         double skillTolerance = 0.10;
 
+        // Continue forming teams while enough participants remain
         while (available.size() >= teamSize && attempts < 100) {
             Team team = TeamFormationHelper.buildSingleTeam(available, teamSize,
                     globalTargetSkill, skillTolerance);
@@ -37,6 +36,7 @@ public class BatchProcessor implements Callable<List<Team>> {
             if (team != null && TeamFormationHelper.isTeamValid(team)) {
                 teams.add(team);
 
+                // Remove assigned members from available pool
                 for (Participant member : team.getMembers()) {
                     available.remove(member);
                 }
@@ -45,6 +45,7 @@ public class BatchProcessor implements Callable<List<Team>> {
             } else {
                 attempts++;
 
+                // Gradually increase tolerance if having difficulty forming teams
                 if (attempts % 10 == 0 && skillTolerance < 0.15) {
                     skillTolerance += 0.02;
                     Collections.shuffle(available);

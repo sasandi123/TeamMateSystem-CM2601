@@ -1,7 +1,9 @@
 package teammate.util;
 
+// Classifies participants into personality types based on survey scores
 public class PersonalityClassifier {
 
+    // Classifies personality type based on total personality score
     public static String classifyPersonality(int score) {
         if (score >= 90 && score <= 100) {
             return "Leader";
@@ -16,9 +18,8 @@ public class PersonalityClassifier {
         }
     }
 
+    // Validates if personality score is within acceptable range
     public static boolean isValidScore(int score) {
         return score >= 50 && score <= 100;
     }
-
-
 }

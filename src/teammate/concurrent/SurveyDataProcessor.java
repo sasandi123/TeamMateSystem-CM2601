@@ -4,16 +4,10 @@ import teammate.entity.Participant;
 import teammate.util.PersonalityClassifier;
 import java.util.concurrent.*;
 
-/**
- * Concurrent processor for individual survey submissions
- * Handles personality calculation using threads
- */
+// Processes survey submissions using concurrent threads for personality classification
 public class SurveyDataProcessor {
 
-    /**
-     * Process individual survey submission using threads
-     * Uses concurrent processing to calculate personality type
-     */
+    // Processes individual survey submission with concurrent personality calculation
     public static SurveyResult processIndividualSurvey(String id, String name, String email,
                                                        String preferredGame, int skillLevel,
                                                        String preferredRole, int personalityScore) {
@@ -21,7 +15,7 @@ public class SurveyDataProcessor {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            // Calculate personality using thread
+            // Calculate personality type using separate thread
             Future<String> personalityTask = executor.submit(() -> {
                 try {
                     return PersonalityClassifier.classifyPersonality(personalityScore);
@@ -52,9 +46,7 @@ public class SurveyDataProcessor {
         }
     }
 
-    /**
-     * Result for individual survey processing
-     */
+    // Encapsulates the result of survey processing
     public static class SurveyResult {
         private boolean success;
         private Participant participant;

@@ -1,7 +1,6 @@
 package teammate.service;
 
 import teammate.entity.Participant;
-import teammate.entity.Team;
 import teammate.exception.TeamMateException;
 import teammate.concurrent.SurveyDataProcessor;
 import teammate.util.ValidationUtil;
@@ -10,21 +9,12 @@ import teammate.util.SystemLogger;
 
 import static teammate.Main.centerText;
 
-/**
- * Participant Portal Service - extends PortalService
- */
+// Handles participant-specific operations including survey submission and team status checking
 public class ParticipantPortalService extends PortalService {
 
-    /**
-     * Constructor - calls parent constructor
-     */
     public ParticipantPortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
         super(participantManager, teamBuilder);
     }
-
-    /**
-     * OVERRIDDEN ABSTRACT METHODS FROM PortalService
-     */
 
     @Override
     protected void displayWelcomeMessage() {
@@ -72,14 +62,7 @@ public class ParticipantPortalService extends PortalService {
         System.out.println("Returning to main menu...");
     }
 
-    /**
-     * PARTICIPANT-SPECIFIC PRIVATE METHODS
-     */
-
-    /**
-     * Submit survey with proper validation
-     * FIXED: Now saves immediately to file
-     */
+    // Collects survey data from participant and processes using concurrent threads
     private void submitSurvey() {
         try {
             System.out.println("\n--- SUBMIT SURVEY ---");
@@ -90,7 +73,7 @@ public class ParticipantPortalService extends PortalService {
             String email = collectAndValidateEmail();
             if (email == null) return;
 
-            // Validate credentials (check duplicates)
+            // Check for duplicate ID or email
             String validationResult = participantManager.validateParticipantCredentials(id, email);
 
             if (validationResult.equals("ID_EXISTS")) {
@@ -127,7 +110,7 @@ public class ParticipantPortalService extends PortalService {
             // Add participant to system
             participantManager.addParticipant(result.getParticipant());
 
-            // FIXED: Save immediately to file (don't wait for exit)
+            // Save participant data to file immediately
             participantManager.saveAllParticipants();
 
             System.out.println("\n[OK] Survey submitted successfully!");
@@ -142,10 +125,7 @@ public class ParticipantPortalService extends PortalService {
         }
     }
 
-    /**
-     * FIXED: Check team assignment status
-     * Only searches finalized teams in cumulative file
-     */
+    // Checks and displays participant's team assignment status
     private void checkMyTeam() {
         System.out.println("\n--- CHECK TEAM STATUS ---");
 
@@ -169,14 +149,12 @@ public class ParticipantPortalService extends PortalService {
             return;
         }
 
-        // FIXED: Only search in cumulative file (finalized teams)
+        // Search for participant's team in finalized records
         System.out.println("\n   Searching team records...");
         FileManager.findMostRecentParticipantTeam(p.getId(), participantManager);
     }
 
-    /**
-     * Runs personality survey questions
-     */
+    // Collects and validates personality survey responses
     private int runPersonalitySurvey() throws TeamMateException.InvalidInputException {
         System.out.println("\n--- PERSONALITY SURVEY (Rate 1-5) ---");
         int totalScore = 0;
@@ -190,9 +168,7 @@ public class ParticipantPortalService extends PortalService {
         return totalScore * 4;
     }
 
-    /**
-     * VALIDATION HELPER METHODS
-     */
+    // Validation helper methods with retry loops
 
     private String collectAndValidateParticipantId() {
         while (true) {

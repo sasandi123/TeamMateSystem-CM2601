@@ -7,22 +7,17 @@ import teammate.util.SystemLogger;
 import java.util.*;
 import java.util.concurrent.*;
 
-/**
- * Unified engine for team formation with automatic mode selection
- * Handles both sequential and parallel processing intelligently
- */
+// Manages team formation with automatic selection between sequential and parallel processing
 public class TeamFormationEngine {
     private TeamBuilder teamBuilder;
-    private static final int PARALLEL_THRESHOLD = 30; // Participants
+    private static final int PARALLEL_THRESHOLD = 30;
     private static final int OPTIMAL_THREADS = 4;
 
     public TeamFormationEngine(TeamBuilder teamBuilder) {
         this.teamBuilder = teamBuilder;
     }
 
-    /**
-     * Builds teams automatically selecting best processing mode
-     */
+    // Builds teams using the most efficient processing mode based on participant count
     public int buildTeams(List<Participant> participants, int teamSize)
             throws InterruptedException, ExecutionException {
 
@@ -44,9 +39,7 @@ public class TeamFormationEngine {
         }
     }
 
-    /**
-     * Sequential processing for small datasets
-     */
+    // Processes team formation sequentially for small datasets
     private int buildTeamsSequential(List<Participant> participants, int teamSize)
             throws InterruptedException, ExecutionException {
 
@@ -67,14 +60,11 @@ public class TeamFormationEngine {
         }
     }
 
-    /**
-     * Parallel processing for large datasets
-     * CRITICAL: Calculates GLOBAL target skill to ensure all teams balance consistently
-     */
+    // Processes team formation in parallel for large datasets
     private int buildTeamsParallel(List<Participant> participants, int teamSize)
             throws InterruptedException, ExecutionException {
 
-        // CRITICAL FIX: Calculate GLOBAL target skill for ALL participants
+        // Calculate global target skill for consistent team balancing across all batches
         int totalSkill = 0;
         for (Participant p : participants) {
             totalSkill += p.getSkillLevel();
@@ -82,15 +72,13 @@ public class TeamFormationEngine {
         int expectedTeams = Math.max(1, participants.size() / teamSize);
         double globalTargetSkill = (double) totalSkill / (expectedTeams * teamSize);
 
-        // Show global target skill to user
         SystemLogger.info("Global target skill: " + String.format("%.2f", globalTargetSkill));
 
-        // CRITICAL: Set target skill in TeamBuilder so it displays when viewing teams
+        // Set target skill in TeamBuilder for display purposes
         teamBuilder.setOverallAverageSkill(globalTargetSkill);
 
         int actualThreads = Math.min(OPTIMAL_THREADS,
                 Math.max(2, participants.size() / (teamSize * 3)));
-
 
         ExecutorService executor = Executors.newFixedThreadPool(actualThreads);
         List<Future<List<Team>>> futures = new ArrayList<>();
@@ -99,19 +87,19 @@ public class TeamFormationEngine {
             int batchSize = Math.max(teamSize * 3, participants.size() / actualThreads);
             List<List<Participant>> batches = divideToBatches(participants, batchSize);
 
+            // Submit batch processing tasks
             for (List<Participant> batch : batches) {
-                // Pass GLOBAL target skill to ensure consistency across all batches
                 BatchProcessor task = new BatchProcessor(batch, teamSize, globalTargetSkill);
                 futures.add(executor.submit(task));
             }
 
+            // Collect results from all batches
             List<Team> allTeams = new ArrayList<>();
             for (Future<List<Team>> future : futures) {
                 allTeams.addAll(future.get());
             }
 
-            // CRITICAL STEP: Teams are added sequentially here to ensure
-            // the finalizeTeamId() call in TeamBuilder is thread-safe.
+            // Add teams sequentially to ensure thread-safe ID assignment
             for (Team team : allTeams) {
                 teamBuilder.addTeam(team);
             }
@@ -125,6 +113,7 @@ public class TeamFormationEngine {
         }
     }
 
+    // Divides participants into batches for parallel processing
     private List<List<Participant>> divideToBatches(List<Participant> participants, int batchSize) {
         List<List<Participant>> batches = new ArrayList<>();
 

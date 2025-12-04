@@ -1,33 +1,20 @@
 package teammate.service;
 
-import teammate.entity.Participant;
 import teammate.exception.TeamMateException;
 import java.util.Scanner;
 
-/**
- * Abstract base class for portal services
-
- * This class provides common functionality for both Participant and Organizer portals,
- * while allowing subclasses to implement their specific behavior.
- */
+// Abstract base class providing common functionality for both participant and organizer portals
 public abstract class PortalService {
     protected Scanner scanner;
     protected ParticipantManager participantManager;
     protected TeamBuilder teamBuilder;
 
-    /**
-     * Constructor - initializes shared components
-     */
     public PortalService(ParticipantManager participantManager, TeamBuilder teamBuilder) {
         this.participantManager = participantManager;
         this.teamBuilder = teamBuilder;
     }
 
-    /**
-     * Template method - defines the overall portal flow
-     * This method controls the structure but delegates specific behavior to subclasses
-
-     */
+    // Main portal flow controlling the user interface loop
     public final void showPortal(Scanner scanner) {
         this.scanner = scanner;
 
@@ -46,24 +33,14 @@ public abstract class PortalService {
         }
     }
 
-    /**
-     * Abstract methods - must be implemented by subclasses
-     * Demonstrates: Abstraction (defines contract without implementation)
-     */
+    // Abstract methods to be implemented by subclasses
     protected abstract void displayWelcomeMessage();
     protected abstract void displayMenu();
     protected abstract void handleMenuChoice(int choice);
     protected abstract int getExitOption();
     protected abstract void displayGoodbyeMessage();
 
-    /**
-     * Concrete helper methods - shared by all subclasses
-     * Demonstrates: Code reuse through inheritance
-     */
-
-    /**
-     * Gets menu choice from user with error handling
-     */
+    // Gets menu choice from user with input validation
     protected int getMenuChoice() {
         System.out.print("Enter choice: ");
         try {
@@ -74,9 +51,7 @@ public abstract class PortalService {
         }
     }
 
-    /**
-     * Gets validated integer input within range
-     */
+    // Gets validated integer input within specified range
     protected int getUserIntInput(String prompt, int min, int max)
             throws TeamMateException.InvalidInputException {
         while (true) {
@@ -102,9 +77,7 @@ public abstract class PortalService {
         }
     }
 
-    /**
-     * Gets non-empty string input from user
-     */
+    // Gets non-empty string input from user
     protected String getNonEmptyInput(String prompt) {
         while (true) {
             System.out.print(prompt);
@@ -118,16 +91,12 @@ public abstract class PortalService {
         }
     }
 
-    /**
-     * Displays a separator line
-     */
+    // Displays a separator line for visual organization
     protected void displaySeparator() {
         System.out.println("=".repeat(50));
     }
 
-    /**
-     * Pauses execution until user presses Enter
-     */
+    // Pauses execution until user presses Enter
     protected void pressEnterToContinue() {
         System.out.print("\nPress Enter to continue...");
         scanner.nextLine();

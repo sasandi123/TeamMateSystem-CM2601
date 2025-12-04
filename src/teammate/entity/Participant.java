@@ -1,5 +1,6 @@
 package teammate.entity;
 
+// Represents a participant in the esports team formation system
 public class Participant {
     private String id;
     private String name;
@@ -11,7 +12,7 @@ public class Participant {
     private String personalityType;
     private String status;
 
-    // Constructor with user-provided ID
+    // Constructor for creating new participant with survey data
     public Participant(String id, String name, String email, String preferredGame, int skillLevel,
                        String preferredRole, int personalityScore, String personalityType) {
         this.id = id;
@@ -25,7 +26,7 @@ public class Participant {
         this.status = "Available";
     }
 
-    // Constructor for loading from file
+    // Constructor for loading participant from file
     public Participant(String id, String name, String email, String preferredGame, int skillLevel,
                        String preferredRole, int personalityScore, String personalityType, String status) {
         this.id = id;
@@ -52,6 +53,7 @@ public class Participant {
 
     public void setStatus(String status) { this.status = status; }
 
+    // Converts participant data to CSV format for file storage
     public String toCSVString() {
         return String.format("%s,%s,%s,%s,%d,%s,%d,%s,%s",
                 id, name, email, preferredGame, skillLevel, preferredRole,

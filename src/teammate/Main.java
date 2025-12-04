@@ -6,10 +6,7 @@ import teammate.service.ParticipantManager;
 import teammate.service.TeamBuilder;
 import java.util.Scanner;
 
-/**
- * TeamMate System - Main Entry Point
- * Intelligent Team Formation System for Esports
- */
+// Main entry point for the TeamMate system
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -24,8 +21,7 @@ public class Main {
         OrganizerPortalService organizerPortal =
                 new OrganizerPortalService(participantManager, sharedTeamBuilder);
 
-        // CRITICAL: Link organizer portal to participant manager
-        // This allows participant manager to call displayAssignedParticipantsDetails
+        // Link organizer portal to participant manager for display functionality
         participantManager.setOrganizerPortal(organizerPortal);
 
         displayWelcomeScreen();
@@ -68,7 +64,7 @@ public class Main {
         System.out.println("\n" + "=".repeat(60));
         System.out.println("|" + " ".repeat(58) + "|");
         System.out.println("|" + centerText("T E A M M A T E   S Y S T E M", 58) + "|");
-        System.out.println("|" + centerText("Intelligent Esports Team Formation", 58) + "|");
+        System.out.println("|" + centerText("Intelligent Team Formation", 58) + "|");
         System.out.println("|" + " ".repeat(58) + "|");
         System.out.println("=".repeat(60) + "\n");
     }
@@ -84,6 +80,7 @@ public class Main {
         System.out.print("\nYour choice: ");
     }
 
+    // Centers text within specified width for display formatting
     public static String centerText(String text, int width) {
         int padding = (width - text.length()) / 2;
         int rightPadding = width - padding - text.length();

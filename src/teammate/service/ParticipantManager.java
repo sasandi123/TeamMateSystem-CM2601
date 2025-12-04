@@ -9,9 +9,7 @@ import teammate.util.SystemLogger;
 import java.io.*;
 import java.util.*;
 
-/**
- * Enhanced ParticipantManager with clear status tracking and file persistence
- */
+// Manages participant data including loading, saving, and CSV processing
 public class ParticipantManager {
     private List<Participant> participants;
     private OrganizerPortalService organizerPortal;
@@ -21,13 +19,12 @@ public class ParticipantManager {
         loadAllParticipants();
     }
 
-    /**
-     * Set the organizer portal reference for displaying participant details
-     */
+    // Sets organizer portal reference for displaying participant details
     public void setOrganizerPortal(OrganizerPortalService portal) {
         this.organizerPortal = portal;
     }
 
+    // Loads all participants from file on system startup
     public void loadAllParticipants() {
         try {
             this.participants = Collections.synchronizedList(
@@ -39,6 +36,7 @@ public class ParticipantManager {
         }
     }
 
+    // Saves all participants to file for persistence
     public void saveAllParticipants() {
         try {
             synchronized (participants) {
@@ -51,6 +49,7 @@ public class ParticipantManager {
         }
     }
 
+    // Validates participant credentials for uniqueness
     public String validateParticipantCredentials(String id, String email) {
         if (!ValidationUtil.isValidParticipantId(id)) {
             return "INVALID_ID_FORMAT";
@@ -73,26 +72,22 @@ public class ParticipantManager {
         return "VALID";
     }
 
-    /**
-     * BETTER VERSION: Process external CSV with clear, meaningful summary
-     */
+    // Processes external CSV file with participant data for bulk upload
     public Map<String, Object> processExternalCSV(String filename, Scanner scanner)
             throws Exception {
 
         Map<String, Object> result = new HashMap<>();
         SystemLogger.info("Starting CSV upload: " + filename);
 
-        // Read all lines from CSV
         List<String> lines = readAllLines(filename);
 
         if (lines.isEmpty()) {
             throw new Exception("CSV file is empty");
         }
 
-        // Remove header
         lines.remove(0);
 
-        // Categorize results
+        // Categorize participants by their current status in system
         List<Participant> sessionParticipants = new ArrayList<>();
         List<Participant> trulyNewParticipants = new ArrayList<>();
         List<String> duplicateAvailable = new ArrayList<>();
@@ -100,7 +95,7 @@ public class ParticipantManager {
         Map<String, String> assignedDetails = new HashMap<>();
         List<String> invalidRecords = new ArrayList<>();
 
-        // Process each line
+        // Process each CSV line and categorize participants
         synchronized (participants) {
             for (String line : lines) {
                 ParticipantRecord record = parseLine(line);
@@ -133,12 +128,10 @@ public class ParticipantManager {
             }
         }
 
-        // Track how many assigned were included
         int assignedIncludedCount = 0;
-
-        // Handle assigned duplicates
         boolean statusChangesOccurred = false;
 
+        // Handle participants already assigned to previous tournaments
         if (!duplicateAssigned.isEmpty()) {
             System.out.println("\n" + "=".repeat(60));
             System.out.println("[!] " + duplicateAssigned.size() +
@@ -179,7 +172,7 @@ public class ParticipantManager {
             }
         }
 
-        // Add truly new participants to master file
+        // Add new participants to master list
         if (!trulyNewParticipants.isEmpty()) {
             synchronized (participants) {
                 participants.addAll(trulyNewParticipants);
@@ -187,12 +180,12 @@ public class ParticipantManager {
             SystemLogger.info("Added " + trulyNewParticipants.size() + " new participants to system");
         }
 
-        // Save to permanent file if needed
+        // Save changes to file if needed
         if (!trulyNewParticipants.isEmpty() || statusChangesOccurred) {
             saveAllParticipants();
         }
 
-        // BETTER SUMMARY - Shows what's actually in the session
+        // Display upload summary
         System.out.println("\n" + "=".repeat(60));
         System.out.println("UPLOAD COMPLETE");
         System.out.println("=".repeat(60));
@@ -212,7 +205,7 @@ public class ParticipantManager {
         }
         System.out.println("=".repeat(60));
 
-        // Prepare result - KEEP SAME AS ORIGINAL!
+        // Prepare result map for caller
         result.put("cancelled", false);
         result.put("newlyAdded", sessionParticipants);
         result.put("duplicateAvailable", duplicateAvailable.size());
@@ -223,6 +216,7 @@ public class ParticipantManager {
         return result;
     }
 
+    // Reads all lines from CSV file
     private List<String> readAllLines(String filename) throws IOException {
         List<String> lines = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
@@ -234,9 +228,7 @@ public class ParticipantManager {
         return lines;
     }
 
-    /**
-     * Parses a single CSV line into a participant with concurrent processing
-     */
+    // Parses CSV line and validates participant data using concurrent processing
     private ParticipantRecord parseLine(String line) {
         try {
             String[] parts = line.split(",");
@@ -252,7 +244,7 @@ public class ParticipantManager {
             String role = parts[5].trim();
             int personalityScore = Integer.parseInt(parts[6].trim());
 
-            // Validate inputs
+            // Validate all input fields
             if (!ValidationUtil.isValidParticipantId(id)) {
                 return ParticipantRecord.invalid("Invalid ID format: " + id);
             }
@@ -266,7 +258,7 @@ public class ParticipantManager {
                 return ParticipantRecord.invalid("Invalid role: " + role);
             }
 
-            // Use concurrent processor to calculate personality
+            // Process personality using concurrent processor
             SurveyDataProcessor.SurveyResult result = SurveyDataProcessor.processIndividualSurvey(
                     id, name, email, game, skill, role, personalityScore
             );
@@ -284,6 +276,7 @@ public class ParticipantManager {
         }
     }
 
+    // Finds participant by ID or email
     private Participant findByIdOrEmail(String id, String email) {
         for (Participant p : participants) {
             if (p.getId().equalsIgnoreCase(id)) {
@@ -296,9 +289,7 @@ public class ParticipantManager {
         return null;
     }
 
-    /**
-     * Public API methods
-     */
+    // Adds a new participant to the system
     public void addParticipant(Participant participant) throws TeamMateException.DuplicateParticipantException {
         if (participant == null) {
             throw new IllegalArgumentException("Participant cannot be null");
@@ -317,6 +308,7 @@ public class ParticipantManager {
         }
     }
 
+    // Searches for participant by ID, email, or name
     public Participant findParticipant(String searchKey) {
         synchronized (participants) {
             for (Participant p : participants) {
@@ -330,6 +322,7 @@ public class ParticipantManager {
         return null;
     }
 
+    // Returns all participants with Available status
     public List<Participant> getAvailableParticipants() {
         List<Participant> available = new ArrayList<>();
         synchronized (participants) {
@@ -342,12 +335,14 @@ public class ParticipantManager {
         return available;
     }
 
+    // Returns all participants in the system
     public List<Participant> getAllParticipants() {
         synchronized (participants) {
             return new ArrayList<>(participants);
         }
     }
 
+    // Removes specified participants from the system
     public void removeParticipants(List<Participant> toRemove) {
         synchronized (participants) {
             participants.removeAll(toRemove);
@@ -355,13 +350,7 @@ public class ParticipantManager {
         }
     }
 
-    private void displaySeparator() {
-        System.out.println("=".repeat(50));
-    }
-
-    /**
-     * Helper class for parsing results
-     */
+    // Helper class for CSV parsing results
     private static class ParticipantRecord {
         private Participant participant;
         private String errorMessage;
