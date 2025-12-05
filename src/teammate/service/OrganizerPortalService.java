@@ -77,10 +77,10 @@ public class OrganizerPortalService extends PortalService {
     }
 
     // Uploads CSV file with participant data for tournament
-    private void uploadCSV() throws Exception {
+    private void uploadCSV() throws Exception {// sq no. 1 of upload CSV use case
         System.out.println("\n--- UPLOAD PARTICIPANT FILE ---");
 
-        String filename = getNonEmptyInput("Enter CSV filename: ");
+        String filename = getNonEmptyInput("Enter CSV file path: ");// sq no 1.1 of upload file use case
 
         File file = new File(filename);
         if (!file.exists()) {
@@ -89,7 +89,7 @@ public class OrganizerPortalService extends PortalService {
         }
 
         // Process CSV and handle results
-        Map<String, Object> result = participantManager.processExternalCSV(filename, scanner);
+        Map<String, Object> result = participantManager.processExternalCSV(filename, scanner);// sq no. 1.2 of upload csv use case
 
         if ((Boolean) result.get("cancelled")) {
             System.out.println("Upload cancelled.");
@@ -103,7 +103,7 @@ public class OrganizerPortalService extends PortalService {
     }
 
     // Generates teams using automatic mode selection (sequential/parallel)
-    private void generateTeams() throws Exception {
+    private void generateTeams() throws Exception {// sq no. 1 of generate teams use case
         System.out.println("\n--- GENERATE TEAMS ---");
 
         List<Participant> participantsToUse;
@@ -114,7 +114,7 @@ public class OrganizerPortalService extends PortalService {
             String choice = scanner.nextLine().trim().toUpperCase();
 
             if (choice.equals("Y")) {
-                participantsToUse = participantManager.getAvailableParticipants();
+                participantsToUse = participantManager.findAvailableParticipants();// sq no. 1.1 of generate teams use case
 
                 if (participantsToUse.isEmpty()) {
                     System.out.println("[X] No available participants in system.");
@@ -130,7 +130,7 @@ public class OrganizerPortalService extends PortalService {
             participantsToUse = new ArrayList<>(currentAssignmentPool);
         }
 
-        int teamSize = getUserIntInput("\nEnter team size (minimum 3): ", 3, 10);
+        int teamSize = getUserIntInput("\nEnter team size (minimum 3): ", 3, 10);// sq no. 1.2 of generate teams use case
 
         if (participantsToUse.size() < teamSize) {
             System.out.println("\n[X] Not enough participants. Need at least " + teamSize + " participants.");
@@ -138,7 +138,7 @@ public class OrganizerPortalService extends PortalService {
         }
 
         // Reset any previous generation
-        teamBuilder.resetCurrentGenerationStatus();
+        teamBuilder.resetCurrentGenerationStatus();// sq no. 1.3 of generate teams use case
         Team.resetTeamCounter();
 
         // Use engine for automatic mode selection
@@ -154,7 +154,7 @@ public class OrganizerPortalService extends PortalService {
     }
 
     // Displays all generated teams with full details
-    private void viewAllTeams() {
+    private void viewAllTeams() {// sq no. 1 of view teams use case
         System.out.println("\n--- VIEW GENERATED TEAMS ---");
 
         if (teamBuilder.getTeamCount() == 0) {
@@ -163,39 +163,39 @@ public class OrganizerPortalService extends PortalService {
             return;
         }
 
-        teamBuilder.displayAllTeams();
+        teamBuilder.displayAllTeams();// sq no. 1.1 of view teams use case
     }
 
     // Searches for a specific team by ID in historical records
-    private void searchTeam() {
+    private void searchTeam() {// sq no. 1 of search team use case
         System.out.println("\n--- SEARCH TEAM ---");
 
-        String teamId = getNonEmptyInput("Enter Team ID (e.g., TEAM0001): ");
+        String teamId = getNonEmptyInput("Enter Team ID (e.g., TEAM0001): ");// sq no. 1.1 of search team use caase
 
-        FileManager.searchTeamById(teamId, participantManager);
+        FileManager.searchTeamById(teamId, participantManager);// sq no. 1.2 of search team use case
     }
 
     // Exports teams to files and finalizes participant assignments
-    private void exportTeams() throws Exception {
+    private void exportTeams() throws Exception {// sq no. 1 of export team use case
         if (teamBuilder.getTeamCount() == 0) {
             System.out.println("\nNo teams to export. Please generate teams first.");
             return;
         }
 
-        List<Participant> assignedInRun = teamBuilder.getAllParticipantsInTeams();
+        List<Participant> assignedInRun = teamBuilder.collectAssignedParticipants();// sq no.1.1 of export teams use case
         List<Participant> unassignedInRun = new ArrayList<>(currentAssignmentPool);
         unassignedInRun.removeAll(assignedInRun);
 
         int assignedCount = assignedInRun.size();
         int unassignedCount = unassignedInRun.size();
 
-        String snapshotFilename = getNonEmptyInput("Enter filename for export (e.g., Teams_Nov2024.csv): ");
+        String snapshotFilename = getNonEmptyInput("Enter filename for export (e.g., Teams_Nov2024.csv): ");//sq no.1.2 of export team use case
 
         System.out.println("\nExporting teams...");
 
         // Export to both snapshot and cumulative files
-        teamBuilder.exportTeamsSnapshot(snapshotFilename);
-        teamBuilder.appendTeamsToCumulative();
+        teamBuilder.exportTeamsSnapshot(snapshotFilename);// sq no. 1.3 of export teams use case
+        teamBuilder.appendTeamsToCumulative();// sq. no. 1.4 of export teams use case
 
         // Save team counter for sequential ID management
         Team.saveTeamCounterToFile();
@@ -242,18 +242,59 @@ public class OrganizerPortalService extends PortalService {
     }
 
     // Displays details of previously assigned participants
-    public void displayAssignedParticipantsDetails(List<String> participantIds, Map<String, String> assignedDetails) {
-        System.out.println("\nPreviously Assigned Participants:");
-        System.out.println("=".repeat(70));
+    public void displayAssignedParticipantsDetails(List<String> duplicateAssigned,
+                                                   Map<String, String> assignedDetails) {
+        // Top border with title
+        System.out.println("\n╔" + "═".repeat(78) + "╗");
+        System.out.println("║" + centerText("PREVIOUSLY ASSIGNED PARTICIPANTS", 78) + "║");
+        System.out.println("╠" + "═".repeat(78) + "╣");
 
-        for (int i = 0; i < participantIds.size(); i++) {
-            String fullInfo = participantIds.get(i);
-            String id = fullInfo.split(" - ")[0];
+        // Section header
+        System.out.println("\n┌" + "─".repeat(78) + "┐");
+        System.out.println("│" + centerText("PARTICIPANT DETAILS", 78) + "│");
+        System.out.println("├" + "─".repeat(78) + "┤");
 
-            System.out.println((i + 1) + ". " + fullInfo);
-            System.out.println("   " + assignedDetails.get(id));
+        // Display each participant
+        for (int i = 0; i < duplicateAssigned.size(); i++) {
+            String dup = duplicateAssigned.get(i);
+            String[] parts = dup.split(" - ");
+            String participantId = parts[0];
+            String nameAndEmail = parts.length > 1 ? parts[1] : "";
+
+            // Extract name and email from the formatted string
+            String name = "";
+            String email = "";
+            if (!nameAndEmail.isEmpty()) {
+                int emailStart = nameAndEmail.lastIndexOf('(');
+                if (emailStart != -1) {
+                    name = nameAndEmail.substring(0, emailStart).trim();
+                    email = nameAndEmail.substring(emailStart + 1, nameAndEmail.length() - 1).trim();
+                }
+            }
+
+            // Get participant details from system if available
+            Participant p = participantManager.findParticipant(participantId);
+
+            // Display participant information
+            System.out.println("│");
+            System.out.println("│ " + (i + 1) + ". Participant ID: " + participantId);
+            System.out.println("│    Name         : " + (name.isEmpty() && p != null ? p.getName() : name));
+
+            // Show assignment history
+            String info = assignedDetails.get(participantId);
+            if (info != null) {
+                System.out.println("│    Assignment   : " + info);
+            }
+
+            // Add separator between participants (except after last one)
+            if (i < duplicateAssigned.size() - 1) {
+                System.out.println("│" + " ".repeat(78) + "│");
+                System.out.println("│" + "·".repeat(78) + "│");
+            }
         }
 
-        System.out.println("=".repeat(70));
+        // Bottom border
+        System.out.println("│");
+        System.out.println("└" + "─".repeat(78) + "┘");
     }
 }

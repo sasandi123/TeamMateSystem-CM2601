@@ -55,7 +55,7 @@ public class TeamBuilder {
         }
 
         for (Team team : teams) {
-            team.displayTeamInfo();
+            team.displayTeamInfo();// sq no. 1.1.1 of view teams use case
             System.out.println();
         }
     }
@@ -146,7 +146,7 @@ public class TeamBuilder {
 
     // Exports current teams to snapshot file
     public void exportTeamsSnapshot(String filename) throws Exception {
-        FileManager.exportTeamsSnapshot(teams, filename);
+        FileManager.exportTeamsSnapshot(teams, filename);//sq no. 1.3.1 of export teams use case
     }
 
     // Appends teams to cumulative records with timestamp
@@ -155,7 +155,7 @@ public class TeamBuilder {
     }
 
     // Returns all participants currently assigned to teams
-    public List<Participant> getAllParticipantsInTeams() {
+    public List<Participant> collectAssignedParticipants() {
         List<Participant> assigned = new ArrayList<>();
         for (Team team : teams) {
             assigned.addAll(team.getMembers());

@@ -75,7 +75,7 @@ public class FileManager {
     }
 
     // Retrieves latest team assignment information for a participant
-    public static String getLatestAssignment(String participantId) {
+    public static String findLatestAssignment(String participantId) {
         String latestTeam = null;
         String latestTimestamp = null;
 
@@ -203,7 +203,7 @@ public class FileManager {
                     // Display each member and calculate distributions
                     for (int i = 0; i < ids.length; i++) {
                         String id = ids[i].trim();
-                        Participant p = participantManager.findParticipant(id);
+                        Participant p = participantManager.findParticipant(id);// sq no. 1.2.2 of search team use case
 
                         if (p != null) {
                             System.out.printf("%d. %s - %s | Game: %s | Skill: %d | Role: %s | Type: %s\n",
@@ -293,22 +293,22 @@ public class FileManager {
                 String memberIds = parts[4];
 
                 // Create team object from file data
-                Team team = new Team(teamSize);
+                Team team = new Team(teamSize); // sq no.1.3.1 of check my team use case
                 team.setTeamId(mostRecentTeamId);
 
                 // Add members to team
                 String[] ids = memberIds.split(";");
                 for (String id : ids) {
-                    Participant p = participantManager.findParticipant(id.trim());
+                    Participant p = participantManager.findParticipant(id.trim()); // sq no. 1.3.2 of check my team use case
                     if (p != null) {
-                        team.addMember(p);
+                        team.addMember(p);// sq no. 1.3.3 of check my team use case
                     }
                 }
 
                 System.out.println("\nFormation Date: " + timestamp);
 
                 // Display simplified team info for participants
-                team.displayTeamInfoForParticipant();
+                team.displayTeamInfoForParticipant();// sq no. 1.3.4 of check my team use case
 
                 SystemLogger.success("Most recent team found: " + mostRecentTeamId);
             } else {

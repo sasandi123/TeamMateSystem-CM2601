@@ -51,7 +51,7 @@ public class ParticipantManager {
 
     // Validates participant credentials for uniqueness
     public String validateParticipantCredentials(String id, String email) {
-        if (!ValidationUtil.isValidParticipantId(id)) {
+        if (!ValidationUtil.isValidParticipantId(id)) { // sq no. 1.3.1 of submit survey use case
             return "INVALID_ID_FORMAT";
         }
 
@@ -79,7 +79,7 @@ public class ParticipantManager {
         Map<String, Object> result = new HashMap<>();
         SystemLogger.info("Starting CSV upload: " + filename);
 
-        List<String> lines = readAllLines(filename);
+        List<String> lines = readAllLines(filename); // sq no. 1.2.2 of upload csv use case
 
         if (lines.isEmpty()) {
             throw new Exception("CSV file is empty");
@@ -101,7 +101,7 @@ public class ParticipantManager {
                 ParticipantRecord record = parseLine(line);
 
                 if (record.isValid()) {
-                    Participant existing = findByIdOrEmail(record.getParticipant().getId(),
+                    Participant existing = findByIdOrEmail(record.getParticipant().getId(), // sq no. 1.2.4 of upload csv use case
                             record.getParticipant().getEmail());
 
                     if (existing != null) {
@@ -110,7 +110,7 @@ public class ParticipantManager {
                             duplicateAvailable.add(record.getParticipant().getId() +
                                     " (" + record.getParticipant().getEmail() + ")");
                         } else if (existing.getStatus().equals("Assigned")) {
-                            String assignmentInfo = FileManager.getLatestAssignment(
+                            String assignmentInfo = FileManager.findLatestAssignment(
                                     record.getParticipant().getId());
 
                             duplicateAssigned.add(record.getParticipant().getId() +
@@ -323,7 +323,7 @@ public class ParticipantManager {
     }
 
     // Returns all participants with Available status
-    public List<Participant> getAvailableParticipants() {
+    public List<Participant> findAvailableParticipants() {
         List<Participant> available = new ArrayList<>();
         synchronized (participants) {
             for (Participant p : participants) {
